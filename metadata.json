@@ -1,0 +1,6 @@
+{
+  "name": "Darwin's Game RPG",
+  "description": "Ficha de personagem online interativa e terminal do Game Master para gerenciamento do sistema de RPG cyberpunk Darwin's Game.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

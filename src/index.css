@@ -1,0 +1,82 @@
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Rajdhani", ui-sans-serif, system-ui, sans-serif;
+  
+  --color-primary: hsl(320, 100%, 55%);
+  --color-secondary: hsl(180, 100%, 50%);
+  --color-background-custom: hsl(240, 10%, 4%);
+  --color-card-custom: hsl(240, 10%, 6%);
+  --color-foreground-custom: hsl(0, 0%, 95%);
+}
+
+@layer base {
+  body {
+    background-color: hsl(240, 10%, 4%);
+    color: hsl(0, 0%, 95%);
+    font-family: 'Rajdhani', sans-serif;
+    background-image: 
+      radial-gradient(circle at 15% 50%, hsl(320, 100%, 55% / 0.03), transparent 25%),
+      radial-gradient(circle at 85% 30%, hsl(180, 100%, 50% / 0.03), transparent 25%);
+    margin: 0;
+    min-height: 100vh;
+  }
+}
+
+.neon-text-primary { color: hsl(320, 100%, 55%); text-shadow: 0 0 10px hsl(320, 100%, 55% / 0.7); }
+.neon-text-secondary { color: hsl(180, 100%, 50%); text-shadow: 0 0 10px hsl(180, 100%, 50% / 0.7); }
+
+.neon-card {
+  background: hsl(240, 10%, 6%);
+  border: 1px solid hsl(320, 100%, 55% / 0.2);
+  position: relative;
+}
+
+.hud-corner::before, .hud-corner::after {
+  content: '';
+  position: absolute;
+  width: 12px; height: 12px;
+  border: 2px solid hsl(180, 100%, 50%);
+  transition: all 0.3s ease;
+}
+.hud-corner::before { top: -1px; left: -1px; border-right: none; border-bottom: none; }
+.hud-corner::after { bottom: -1px; right: -1px; border-left: none; border-top: none; }
+
+.hud-progress-bg {
+  background: hsl(0, 0%, 95% / 0.05);
+  border: 1px solid hsl(0, 0%, 95% / 0.1);
+  height: 8px;
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+}
+.hud-progress-fill {
+  background: linear-gradient(90deg, hsl(320, 100%, 55%), hsl(180, 100%, 50%));
+  height: 100%;
+  box-shadow: 0 0 10px hsl(180, 100%, 50%);
+  position: relative;
+  transition: width 0.5s ease-out;
+}
+
+.gm-input {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid hsl(180, 100%, 50% / 0.3);
+  color: #06b6d2; /* matching cyan */
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  width: 100%;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+.gm-input:focus {
+  outline: none;
+  border-color: hsl(320, 100%, 55%);
+  box-shadow: 0 0 10px hsl(320, 100%, 55% / 0.5);
+}
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: hsl(240, 10%, 4%); }
+::-webkit-scrollbar-thumb { background: hsl(320, 100%, 55% / 0.5); border-radius: 4px; }
+
