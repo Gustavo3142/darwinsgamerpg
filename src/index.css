@@ -79,4 +79,10 @@
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: hsl(240, 10%, 4%); }
 ::-webkit-scrollbar-thumb { background: hsl(320, 100%, 55% / 0.5); border-radius: 4px; }
-
+@keyframes spin-3d {
+  0% { transform: rotateY(0deg); }
+  100% { transform: rotateY(360deg); }
+}
+.animate-spin-3d {
+  animation: spin-3d 3s linear infinite;
+}

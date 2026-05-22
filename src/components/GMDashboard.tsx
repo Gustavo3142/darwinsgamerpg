@@ -93,6 +93,13 @@ export default function GMDashboard({
   const [newConquista, setNewConquista] = useState("");
   const [newConquistaDesc, setNewConquistaDesc] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  
+// Filtro de Missões
+  const [missionFilter, setMissionFilter] = useState("todas");
+  // Raridade da Conquista
+  const [newConquistaRarity, setNewConquistaRarity] = useState("comum");
+  // Quantidade para remover do inventário
+  const [removeQtyState, setRemoveQtyState] = useState<{ [key: number]: string }>({});
 
   // Analytics State
   const [reportStartDate, setReportStartDate] = useState("");
@@ -206,7 +213,12 @@ export default function GMDashboard({
 
   const handleAddConquista = () => {
     if (!newConquista.trim() || !selectedPlayerId) return;
-    const item = { name: newConquista.trim(), desc: newConquistaDesc.trim() };
+    // Agora o objeto "item" inclui a propriedade "rarity" que lê o estado atualizado pelo menu select
+    const item = { 
+      name: newConquista.trim(), 
+      desc: newConquistaDesc.trim(), 
+      rarity: newConquistaRarity 
+    };
     setPlayers((prev) =>
       prev.map((p) => {
         if (p.id === selectedPlayerId) {
@@ -215,7 +227,7 @@ export default function GMDashboard({
         return p;
       })
     );
-    addLog(selectedPlayerId, "CONQUISTA", `Conquista adicionada: ${newConquista.trim()}`);
+    addLog(selectedPlayerId, "CONQUISTA", `Conquista adicionada: ${newConquista.trim()} (${newConquistaRarity})`);
     setNewConquista("");
     setNewConquistaDesc("");
     showToast("Título honorário outorgado.", "success");
@@ -537,19 +549,36 @@ export default function GMDashboard({
   };
 
   const handleRemoveItemFromSelected = (playerId: number, itemId: number) => {
+    const qtyToRemove = Number(removeQtyState[itemId]) || 1;
     let itemRemovedName = "Desconhecido";
+    
     setPlayers((prev) =>
       prev.map((p) => {
         if (p.id === playerId) {
           const item = p.inventory.find((i) => i.id === itemId);
-          if (item) itemRemovedName = item.name;
-          return { ...p, inventory: p.inventory.filter((i) => i.id !== itemId) };
+          if (item) {
+            itemRemovedName = item.name;
+            // Se a quantidade a remover for maior ou igual ao que ele tem, apaga o item todo
+            if (item.quantity <= qtyToRemove) {
+              return { ...p, inventory: p.inventory.filter((i) => i.id !== itemId) };
+            } else {
+              // Se não, apenas subtrai a quantidade
+              const newInv = p.inventory.map(i => i.id === itemId ? { ...i, quantity: i.quantity - qtyToRemove } : i);
+              return { ...p, inventory: newInv };
+            }
+          }
         }
         return p;
       })
     );
-    addLog(playerId, "INVENTÁRIO", `Item descartado/removido por GM: ${itemRemovedName}`);
-    showToast("Item expurgado do inventário.", "success");
+    addLog(playerId, "INVENTÁRIO", `GM removeu ${qtyToRemove}x: ${itemRemovedName}`);
+    showToast(`${qtyToRemove}x ${itemRemovedName} removido(s).`, "success");
+    setRemoveQtyState(prev => ({ ...prev, [itemId]: "" }));
+  };
+
+  const handleDeleteShopItem = (id: number) => {
+    setShopItems((prev) => prev.filter((i) => i.id !== id));
+    showToast("Lote excluído do mercado.", "success");
   };
 
   const toggleSquadMember = (id: number) => {
@@ -854,9 +883,20 @@ export default function GMDashboard({
                             type="text"
                             value={newConquista}
                             onChange={(e) => setNewConquista(e.target.value)}
-                            placeholder="Nome / Título da conquista..."
-                            className="gm-input !py-1.5 !text-xs flex-1"
+                            placeholder="Nome / Título..."
+                            className="gm-input !py-1.5 !text-xs flex-[2]"
                           />
+                          <select
+                            value={newConquistaRarity}
+                            onChange={(e) => setNewConquistaRarity(e.target.value)}
+                            className="gm-input !py-1.5 !text-xs flex-[1] px-1"
+                          >
+                            <option value="comum">Comum</option>
+                            <option value="raro">Raro</option>
+                            <option value="epico">Épico</option>
+                            <option value="lendario">Lendário</option>
+                            <option value="especial">Especial</option>
+                          </select>
                           <button
                             onClick={handleAddConquista}
                             className="bg-pink-600 hover:bg-pink-500 text-white px-4 text-xs font-bold uppercase rounded cursor-pointer transition-colors shrink-0"
@@ -877,17 +917,40 @@ export default function GMDashboard({
                           const isObj = c && typeof c === "object";
                           const name = isObj ? (c as any).name : c;
                           const desc = isObj ? (c as any).desc : "";
+                          const rarity = isObj ? (c as any).rarity : "comum";
+
+                          // Definição de estilos por raridade
+                          let colors = "text-slate-300 border-slate-500/30";
+                          let iconClass = "text-slate-400";
+                          let shadow = "";
+
+                          if (rarity === "raro") {
+                            colors = "text-blue-400 border-blue-500/50";
+                            iconClass = "text-blue-500";
+                          } else if (rarity === "epico") {
+                            colors = "text-purple-500 border-purple-500/50";
+                            iconClass = "text-purple-500";
+                          } else if (rarity === "lendario") {
+                            colors = "text-orange-500 border-orange-500 font-black";
+                            iconClass = "text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.8)]";
+                            shadow = "shadow-[0_0_15px_rgba(249,115,22,0.6)]";
+                          } else if (rarity === "especial") {
+                            colors = "text-yellow-400 border-yellow-400 font-black bg-yellow-900/10";
+                            iconClass = "text-yellow-400 animate-spin-3d drop-shadow-[0_0_10px_rgba(250,204,21,1)]";
+                            shadow = "shadow-[0_0_20px_rgba(250,204,21,0.8)]";
+                          }
+
                           return (
                             <div
                               key={i}
-                              className="flex justify-between items-start bg-zinc-900/50 border border-yellow-500/10 p-2 rounded"
+                              className={`flex justify-between items-start bg-zinc-900/50 border p-2 rounded ${colors} ${shadow}`}
                             >
                               <div className="flex flex-col gap-0.5">
-                                <span className="text-sm font-bold text-yellow-400 flex items-center gap-1.5">
-                                  <Trophy className="w-4 h-4 shrink-0 text-yellow-500/80" /> {name}
+                                <span className={`text-sm font-bold flex items-center gap-1.5 ${colors}`}>
+                                  <Trophy className={`w-4 h-4 shrink-0 ${iconClass}`} /> {name}
                                 </span>
                                 {desc && (
-                                  <span className="text-xs text-slate-400 pl-5">
+                                  <span className="text-xs text-slate-400 pl-5 font-normal">
                                     {desc}
                                   </span>
                                 )}
@@ -895,6 +958,7 @@ export default function GMDashboard({
                               <button
                                 onClick={() => handleRemoveConquista(i)}
                                 className="text-slate-500 hover:text-red-500 cursor-pointer transition-colors p-1 shrink-0 ml-2"
+                                title="Revogar Conquista"
                               >
                                 <Trash className="w-4 h-4" />
                               </button>
@@ -1389,10 +1453,21 @@ export default function GMDashboard({
                         </span>
                       </div>
                     </div>
-                    <button
-                      onClick={() => restockItem(item.id)}
-                      className="bg-zinc-800 hover:bg-purple-600 text-[10px] text-white px-3 py-1.5 rounded uppercase font-bold transition-all duration-200 cursor-pointer border border-zinc-700 hover:border-purple-500"
-                    >
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => restockItem(item.id)}
+                        className="bg-zinc-800 hover:bg-purple-600 text-[10px] text-white px-3 py-1.5 rounded uppercase font-bold transition-all duration-200 cursor-pointer border border-zinc-700 hover:border-purple-500"
+                      >
+                        Restocar (+5)
+                      </button>
+                      <button
+                        onClick={() => handleDeleteShopItem(item.id)}
+                        className="bg-zinc-800 hover:bg-red-600 text-white px-2.5 py-1.5 rounded transition-all duration-200 cursor-pointer border border-zinc-700 hover:border-red-500"
+                        title="Excluir item da loja"
+                      >
+                        <Trash className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                       Restocar (+5)
                     </button>
                   </div>
@@ -1573,7 +1648,7 @@ export default function GMDashboard({
                 </div>
 
                 <div className="space-y-1.5 mt-4 max-h-[250px] overflow-y-auto pr-2">
-                  {(selectedCreditPlayer.inventory || []).map((item) => (
+                 {(selectedCreditPlayer.inventory || []).map((item) => (
                     <div
                       key={item.id}
                       className="flex justify-between items-center bg-zinc-900/50 border border-cyan-500/10 p-2.5 rounded hover:border-cyan-500/30 transition-colors"
@@ -1582,20 +1657,35 @@ export default function GMDashboard({
                         <Cpu className="text-cyan-400 w-4 h-4" />
                         <div className="flex flex-col">
                           <span className="text-sm font-bold text-cyan-400">
-                            {item.name}{" "}
-                            <span className="text-pink-500 text-xs ml-1 font-sans">
-                              x{item.quantity}
-                            </span>
+                            {item.name} <span className="text-pink-500 text-xs ml-1 font-sans">x{item.quantity}</span>
                           </span>
                           <span className="text-[10px] text-slate-400">{item.desc}</span>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveItemFromSelected(selectedCreditPlayer.id, item.id)}
-                        className="text-slate-500 hover:text-red-500 p-2 transition-colors cursor-pointer"
-                        title="Remover"
-                      >
+                      
+                      {/* NOVA ÁREA DOS BOTÕES: Input de quantidade + Lixeira */}
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="1"
+                          max={item.quantity}
+                          placeholder="Qtd"
+                          value={removeQtyState[item.id] || ""}
+                          onChange={(e) => setRemoveQtyState({ ...removeQtyState, [item.id]: e.target.value })}
+                          className="gm-input !py-1 !px-2 !text-xs w-16 text-center"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItemFromSelected(selectedCreditPlayer.id, item.id)}
+                          className="text-slate-500 hover:text-red-500 p-2 transition-colors cursor-pointer bg-zinc-950 border border-zinc-800 rounded"
+                          title="Remover quantidade informada"
+                        >
+                          <Trash className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                    </div>
+                  ))}
                         <Trash className="w-4 h-4" />
                       </button>
                     </div>
@@ -1843,9 +1933,29 @@ export default function GMDashboard({
           </div>
 
           <div className="lg:col-span-2 space-y-4">
-            <h2 className="text-lg font-bold text-cyan-500 uppercase tracking-widest border-b border-cyan-500/20 pb-2 mb-4">
-              Diretrizes Ativas no Servidor
-            </h2>
+            <div className="flex justify-between items-center border-b border-cyan-500/20 pb-2 mb-4">
+              <h2 className="text-lg font-bold text-cyan-500 uppercase tracking-widest m-0 border-none pb-0">
+                Diretrizes Ativas no Servidor
+              </h2>
+              <select
+                value={missionFilter}
+                onChange={(e) => setMissionFilter(e.target.value)}
+                className="gm-input !w-auto !py-1 !text-xs text-cyan-400 font-bold"
+              >
+                <option value="todas">Todas</option>
+                <option value="geral">Gerais (Públicas)</option>
+                <option value="esquadrao">Esquadrões</option>
+                <option value="especifica">Individuais</option>
+              </select>
+            </div>
+            {missions
+              .filter(m => {
+                if (missionFilter === "geral") return !m.targetPlayerId && !m.targetSquadId;
+                if (missionFilter === "esquadrao") return m.targetSquadId !== null;
+                if (missionFilter === "especifica") return m.targetPlayerId !== null;
+                return true; 
+              })
+              .map((m) => {
             {missions.map((m) => {
               const claimedCount = (m.claimedBy || []).length;
               return (

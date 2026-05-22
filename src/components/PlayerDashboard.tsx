@@ -666,27 +666,52 @@ export default function PlayerDashboard({
                 Nenhum título honorário ou conquista desbloqueada. Complete diretrizes críticas para receber méritos do GM.
               </p>
             )}
-            {player.conquistas.map((c, i) => {
+           {player.conquistas.map((c, i) => {
               const isObj = c && typeof c === "object";
               const name = isObj ? (c as any).name : c;
               const desc = isObj ? (c as any).desc : "";
+              const rarity = isObj ? (c as any).rarity : "comum";
+
+              let colors = "text-slate-300 border-slate-500/30";
+              let iconClass = "text-slate-400";
+              let bgIcon = "bg-slate-500/10 border-slate-500/30";
+              let shadow = "";
+
+              if (rarity === "raro") {
+                colors = "text-blue-400 border-blue-500/50";
+                iconClass = "text-blue-500";
+                bgIcon = "bg-blue-500/10 border-blue-500/50";
+              } else if (rarity === "epico") {
+                colors = "text-purple-500 border-purple-500/50";
+                iconClass = "text-purple-500";
+                bgIcon = "bg-purple-500/10 border-purple-500/50";
+              } else if (rarity === "lendario") {
+                colors = "text-orange-500 border-orange-500 font-black";
+                iconClass = "text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.8)]";
+                bgIcon = "bg-orange-500/10 border-orange-500";
+                shadow = "shadow-[0_0_15px_rgba(249,115,22,0.6)]";
+              } else if (rarity === "especial") {
+                colors = "text-yellow-400 border-yellow-400 font-black";
+                iconClass = "text-yellow-400 animate-spin-3d drop-shadow-[0_0_10px_rgba(250,204,21,1)]";
+                bgIcon = "bg-yellow-500/20 border-yellow-500";
+                shadow = "shadow-[0_0_20px_rgba(250,204,21,0.8)]";
+              }
+
               return (
                 <div
                   key={i}
-                  className="neon-card p-4 flex gap-3 border-yellow-500/50 shadow-[0_0_10px_rgba(234,179,8,0.1)] items-start"
+                  className={`neon-card p-4 flex gap-3 items-start ${colors} ${shadow}`}
                 >
-                  <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-500 border border-yellow-500/50 shrink-0">
-                    <Trophy className="w-5 h-5 animate-pulse" />
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center border shrink-0 ${bgIcon}`}>
+                    <Trophy className={`w-5 h-5 ${iconClass}`} />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <div className="font-bold text-yellow-400 text-sm uppercase tracking-wider">{name}</div>
-                    {desc && <div className="text-xs text-slate-400 font-sans italic">{desc}</div>}
+                    <div className={`font-bold text-sm uppercase tracking-wider ${colors}`}>{name}</div>
+                    {desc && <div className="text-xs text-slate-400 font-sans italic font-normal">{desc}</div>}
                   </div>
                 </div>
               );
             })}
-          </div>
-        )}
 
         {/* TAB 5: INVENTORY */}
         {activeTab === "inventory" && (
