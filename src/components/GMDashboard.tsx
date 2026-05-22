@@ -2190,7 +2190,7 @@ export default function GMDashboard({
                       <LineChart
                         data={(() => {
                           const map: { [key: string]: any } = {};
-                          [filteredLogs].reverse().forEach((l) => {
+                          filteredLogs.forEach((l) => {
                             const d = new Date(l.date).toLocaleDateString("pt-BR", {
                               day: "2-digit",
                               month: "2-digit",
