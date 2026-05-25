@@ -101,9 +101,18 @@ export default function GMDashboard({
   const [newItemRarity, setNewItemRarity] = useState("comum");
   const [shopRarity, setShopRarity] = useState("comum");
 
-  // Estados do Filtro Cascata de Logs (Item 1)
+  // Estados do Filtro Cascata de Logs
   const [logFilterType, setLogFilterType] = useState("todos");
   const [logTargetId, setLogTargetId] = useState("");
+
+  // Estados Customizados para Penalidades (Ponto 1)
+  const [degradeTargetType, setDefragTargetType] = useState("player");
+  const [degradeSquadId, setDegradeSquadId] = useState(squads[0]?.id?.toString() || "");
+
+  // Estados Customizados para Fornecedor Estilo Missões (Ponto 2)
+  const [shopVisibilityType, setShopVisibilityType] = useState("geral");
+  const [shopTargetPlayerId, setShopTargetPlayerId] = useState(players[0]?.id?.toString() || "");
+  const [shopTargetSquadId, setShopTargetSquadId] = useState(squads[0]?.id?.toString() || "");
 
   // Analytics State
   const [reportStartDate, setReportStartDate] = useState("");
@@ -178,7 +187,7 @@ export default function GMDashboard({
       setPlayers((prev) => prev.map((p) => (p.id === editForm.id ? editForm : p)));
       addLog(editForm.id, "STATUS", `Atualização manual de status e/ou credenciais pelo GM.`);
       setIsEditing(false);
-      showToast("Dados do jogador atualizados no Mainframe.", "success");
+      showToast("Dados do jogador updated no Mainframe.", "success");
     }
   };
 
@@ -459,14 +468,30 @@ export default function GMDashboard({
     setCreditAttrValue("0");
   };
 
+  // Lógica de Penalidades com Suporte a Grupo (Ponto 1)
   const handleDegrade = (e: React.FormEvent) => {
     e.preventDefault();
-    const targetId = Number(degradePlayerId);
-    if (!targetId) return showToast("Selecione um operador.", "error");
+    
+    let targetIds: number[] = [];
+    let targetNameLog = "";
+
+    if (degradeTargetType === "player") {
+      if (!degradePlayerId) return showToast("Selecione um operador.", "error");
+      targetIds = [Number(degradePlayerId)];
+      targetNameLog = players.find((p) => p.id === Number(degradePlayerId))?.name || "Desconhecido";
+    } else if (degradeTargetType === "squad") {
+      if (!degradeSquadId) return showToast("Selecione um esquadrão divisor.", "error");
+      const squad = squads.find((s) => s.id === Number(degradeSquadId));
+      if (!squad) return showToast("Sindicato não identificado.", "error");
+      targetIds = squad.members;
+      targetNameLog = `Esquadrão ${squad.name}`;
+    }
+
+    if (targetIds.length === 0) return showToast("Nenhum alvo qualificado para corte.", "error");
 
     setPlayers((prevPlayers) =>
       prevPlayers.map((p) => {
-        if (p.id === targetId) {
+        if (targetIds.includes(p.id)) {
           let newXp = p.currentXp - Number(degradeXp);
           let newLevel = p.level;
           let totalXpNeeded = p.totalXpForLevel;
@@ -500,13 +525,16 @@ export default function GMDashboard({
       })
     );
 
-    addLog(
-      targetId,
-      "DEGRADAÇÃO",
-      `Protocolo de penalidade via GM${degradeAttrKey ? ` - Atributo: ${degradeAttrKey}` : ""}`,
-      -Number(degradeXp),
-      -Number(degradeSp)
-    );
+    targetIds.forEach(id => {
+      addLog(
+        id,
+        "DEGRADAÇÃO",
+        `Protocolo de penalidade via GM (${targetNameLog})${degradeAttrKey ? ` - Atributo: ${degradeAttrKey}` : ""}`,
+        -Number(degradeXp),
+        -Number(degradeSp)
+      );
+    });
+
     showToast("Protocolo de Degradação concluído.", "success");
     setDegradeXp("0");
     setDegradeSp("0");
@@ -618,15 +646,15 @@ export default function GMDashboard({
       desc: shopDesc.trim(),
       cost: Number(shopCost) || 100,
       stock: Number(shopStock) || 5,
-      targetPlayerId: shopTargetId ? Number(shopTargetId) : null,
+      targetPlayerId: shopVisibilityType === "especifica" ? Number(shopTargetPlayerId) : null,
+      targetSquadId: shopVisibilityType === "esquadrao" ? Number(shopTargetSquadId) : null,
       rarity: shopRarity,
-    };
+    } as any;
     setShopItems((prev) => [newItem, ...prev]);
     setShopName("");
     setShopDesc("");
     setShopCost("100");
     setShopStock("5");
-    setShopTargetId("");
     showToast("Item catalogado para transações.", "success");
   };
 
@@ -637,7 +665,6 @@ export default function GMDashboard({
     showToast("Estoque do lote expandido (+5 unidades).", "success");
   };
 
-  // Canal de Impressão Nativo (Item 3 - Ignora restrições de Iframe/Sandbox)
   const exportPDF = () => {
     showToast("Iniciando canal de renderização nativo do Mainframe...", "success");
     setTimeout(() => {
@@ -645,7 +672,6 @@ export default function GMDashboard({
     }, 500);
   };
 
-  // Lógica Avançada de Filtragem de logs (Item 1)
   const filteredLogs = logs.filter((log) => {
     if (reportStartDate && new Date(log.date) < new Date(reportStartDate + "T00:00:00")) return false;
     if (reportEndDate && new Date(log.date) > new Date(reportEndDate + "T23:59:59")) return false;
@@ -1066,11 +1092,11 @@ export default function GMDashboard({
                           Senha de Sincronia
                         </label>
                         <input
-                          type="text"
+                          type="password"
                           name="password"
                           value={editForm.password || ""}
                           onChange={handleInputChange}
-                          className="gm-input border-pink-500/30"
+                          className="gm-input border-pink-500/30 font-sans"
                         />
                       </div>
                     </div>
@@ -1391,23 +1417,57 @@ export default function GMDashboard({
                   <option value="especial">Especial</option>
                 </select>
               </div>
+              {/* Privilégios de Item como Missões (Ponto 2) */}
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                  Visibilidade Privada
+                  Visibilidade Privilégio
                 </label>
                 <select
-                  value={shopTargetId}
-                  onChange={(e) => setShopTargetId(e.target.value)}
+                  value={shopVisibilityType}
+                  onChange={(e) => setShopVisibilityType(e.target.value)}
                   className="gm-input mt-1 text-slate-300"
                 >
-                  <option value="">Mercado Público (Todos)</option>
-                  {players.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      Exclusivo: {p.name}
-                    </option>
-                  ))}
+                  <option value="geral">Mercado Público (Todos)</option>
+                  <option value="esquadrao">Restrito a Sindicato (Squad)</option>
+                  <option value="especifica">Foco Único (Sujeito exclusivo)</option>
                 </select>
               </div>
+              {shopVisibilityType === "especifica" && (
+                <div className="animate-fade-in">
+                  <label className="text-xs font-bold text-purple-400 uppercase tracking-widest">
+                    Selecionar Alvo Exclusivo
+                  </label>
+                  <select
+                    value={shopTargetPlayerId}
+                    onChange={(e) => setShopTargetPlayerId(e.target.value)}
+                    className="gm-input mt-1 border-purple-500 text-purple-400 font-semibold text-sm"
+                  >
+                    {players.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {shopVisibilityType === "esquadrao" && (
+                <div className="animate-fade-in">
+                  <label className="text-xs font-bold text-blue-400 uppercase tracking-widest">
+                    Selecionar Esquadrão Alvo
+                  </label>
+                  <select
+                    value={shopTargetSquadId}
+                    onChange={(e) => setShopTargetSquadId(e.target.value)}
+                    className="gm-input mt-1 border-blue-500 text-blue-400 font-semibold text-sm"
+                  >
+                    {squads.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <button
                 type="submit"
                 className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 mt-2 rounded uppercase tracking-widest text-sm transition-all duration-300 shadow-[0_0_15px_rgba(147,51,234,0.3)] cursor-pointer"
@@ -1429,6 +1489,7 @@ export default function GMDashboard({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {shopItems.map((item) => {
                 const r = (item as any).rarity || "comum";
+                const tSquadId = (item as any).targetSquadId;
                 let shopColor = "border-purple-500/20";
                 let titleColor = "text-purple-400";
                 let shadow = "";
@@ -1449,7 +1510,12 @@ export default function GMDashboard({
                         <div className="flex gap-1.5">
                           {item.targetPlayerId && (
                             <span className="text-[9px] bg-purple-900/50 text-purple-300 px-2 py-0.5 rounded uppercase tracking-widest border border-purple-500/30 font-bold">
-                              Privado
+                              Exclusivo
+                            </span>
+                          )}
+                          {tSquadId && (
+                            <span className="text-[9px] bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded uppercase tracking-widest border border-blue-500/30 font-bold">
+                              Squad
                             </span>
                           )}
                           <span className={`text-[9px] px-2 py-0.5 rounded uppercase tracking-widest font-bold bg-zinc-950 border ${shopColor} ${titleColor}`}>
@@ -1735,30 +1801,63 @@ export default function GMDashboard({
         </div>
       )}
 
-      {/* VIEW: DEGRADE PENALTIES */}
+      {/* VIEW: DEGRADE PENALTIES COM SUPORTE EM CASCATA (Ponto 1) */}
       {gmTab === "degradacao" && (
         <div className="neon-card p-6 md:p-8 space-y-6 max-w-3xl mx-auto bg-zinc-900/50 animate-fade-in border-red-500/30 shadow-2xl">
           <h2 className="text-xl font-bold text-red-400 uppercase tracking-widest border-b border-red-500/20 pb-2 mb-6 flex items-center gap-1.5">
             <TrendingDown className="w-5 h-5 text-red-500 animate-pulse" /> Protocolo Severo de Degradação
           </h2>
 
-          <div className="mb-6 bg-zinc-950 p-4 border border-zinc-900 rounded">
-            <label className="block text-xs uppercase text-slate-400 font-bold mb-1">
-              Selecionar Agente Alvo
-            </label>
-            <select
-              required
-              value={degradePlayerId}
-              onChange={(e) => setDegradePlayerId(e.target.value)}
-              className="gm-input border-red-500/40 text-red-400 text-sm font-bold"
-            >
-              <option value="">-- Escolher Alvo --</option>
-              {players.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+          <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4 bg-zinc-950 p-4 rounded border border-zinc-900">
+            <div>
+              <label className="block text-xs uppercase text-slate-400 font-bold mb-1">
+                Alvo Requerido
+              </label>
+              <select
+                value={degradeTargetType}
+                onChange={(e) => {
+                  setDefragTargetType(e.target.value);
+                  setDegradePlayerId(players[0]?.id?.toString() || "");
+                  setDegradeSquadId(squads[0]?.id?.toString() || "");
+                }}
+                className="gm-input border-red-500/40 text-red-400 text-base font-bold"
+              >
+                <option value="player">Individual (Jogador)</option>
+                <option value="squad">Divisão Inteira (Esquadrão)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs uppercase text-red-400 font-bold mb-1">
+                Selecionar Alvo
+              </label>
+              {degradeTargetType === "player" ? (
+                <select
+                  value={degradePlayerId}
+                  onChange={(e) => setDegradePlayerId(e.target.value)}
+                  className="gm-input border-red-500/50 text-red-400 text-sm font-semibold"
+                >
+                  <option value="">-- Escolher Operador --</option>
+                  {players.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <select
+                  value={degradeSquadId}
+                  onChange={(e) => setDegradeSquadId(e.target.value)}
+                  className="gm-input border-blue-500/50 text-blue-400 text-sm font-semibold"
+                >
+                  <option value="">-- Escolher Esquadrão --</option>
+                  {squads.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.members.length} membros)
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
           </div>
 
           <form onSubmit={handleDegrade} className="space-y-6">
@@ -2195,7 +2294,6 @@ export default function GMDashboard({
       {/* VIEW: RELATÓRIOS / ANALYTICS INSIGHTS */}
       {gmTab === "relatorio" && (
         <div className="space-y-6">
-          {/* Injeção Dinâmica das Configurações de Impressão de Alta Resolução */}
           <style dangerouslySetInnerHTML={{__html: `
             @media print {
               body { background: #06060c !important; color: #fff !important; font-family: 'Rajdhani', sans-serif !important; }
@@ -2233,7 +2331,6 @@ export default function GMDashboard({
                 </div>
               </div>
 
-              {/* Menu Suspenso Multi-Filtro de Logs Contextual (Item 1) */}
               <div className="border-t border-zinc-800/50 pt-3 flex flex-col md:flex-row gap-4 items-end">
                 <div className="flex-1 min-w-[180px]">
                   <span className="text-[10px] uppercase text-cyan-400 font-bold tracking-wider block mb-1">
@@ -2557,7 +2654,6 @@ export default function GMDashboard({
                       Corrida Dinâmica de XP Comparada
                     </h3>
                     
-                    {/* Menu Suspenso de Seleção Avançado de Mapeamento (Item 2) */}
                     <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-end print:hidden">
                       {selectedCompareIds.map((id, idx) => {
                         const p = players.find(pl => pl.id === id);

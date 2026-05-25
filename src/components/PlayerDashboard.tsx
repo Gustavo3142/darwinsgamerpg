@@ -133,7 +133,6 @@ export default function PlayerDashboard({
           claimedBy: [],
         };
 
-        // Push new mission to server
         setMissions((prev) => [newMission, ...prev]);
         showToast("Novo contrato do Fixer criptografado na Dark Web!", "success");
       } else {
@@ -169,10 +168,8 @@ export default function PlayerDashboard({
       return showToast("Estoque esgotado para esse item.", "error");
     }
 
-    // Deduct stock
     setShopItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, stock: i.stock - 1 } : i)));
 
-    // Update player inventory and deduct SP
     setPlayers((prev) =>
       prev.map((p) => {
         if (p.id === player.id) {
@@ -627,12 +624,18 @@ export default function PlayerDashboard({
           </div>
         )}
 
-        {/* TAB 3: BLACK MARKET */}
+        {/* TAB 3: BLACK MARKET COM VISUALIZAÇÃO DE QUANTIDADE */}
         {activeTab === "mercado" && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {shopItems
-                .filter((i) => i.targetPlayerId === null || i.targetPlayerId === player.id)
+                .filter((i) => {
+                  const tPlayerId = i.targetPlayerId;
+                  const tSquadId = (i as any).targetSquadId;
+                  return (tPlayerId === null && !tSquadId) || 
+                         tPlayerId === player.id || 
+                         (tSquadId && mySquads.includes(tSquadId));
+                })
                 .map((item) => {
                   const hasSP = player.spBalance >= item.cost;
                   const hasStock = item.stock > 0;
@@ -664,13 +667,16 @@ export default function PlayerDashboard({
                       <div className="flex justify-between items-end pt-3 border-t border-zinc-800">
                         <div>
                           <div className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">
-                            SP Custo / Raridade
+                            SP Custo / Raridade / Estoque
                           </div>
                           <div className="flex items-center gap-2 mt-1">
                             <span className="font-bold text-pink-400 flex items-center gap-0.5">
                               <Zap className="w-3.5 h-3.5" /> {item.cost}
                             </span>
                             <span className={`text-[10px] uppercase font-bold ${titleColor}`}>| {r}</span>
+                            <span className={`text-[10px] font-bold ${item.stock > 0 ? "text-cyan-400" : "text-red-500"}`}>
+                              | Qtd: {item.stock}
+                            </span>
                           </div>
                         </div>
                         <button
