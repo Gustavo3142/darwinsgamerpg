@@ -1468,9 +1468,6 @@ export default function GMDashboard({
                         <Trash className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                      Restocar (+5)
-                    </button>
-                  </div>
                 </div>
               ))}
             </div>
@@ -1956,7 +1953,6 @@ export default function GMDashboard({
                 return true; 
               })
               .map((m) => {
-            {missions.map((m) => {
               const claimedCount = (m.claimedBy || []).length;
               return (
                 <div

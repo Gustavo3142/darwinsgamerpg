@@ -712,6 +712,8 @@ export default function PlayerDashboard({
                 </div>
               );
             })}
+          </div>
+        )}
 
         {/* TAB 5: INVENTORY */}
         {activeTab === "inventory" && (
