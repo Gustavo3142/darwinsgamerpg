@@ -181,7 +181,13 @@ export default function PlayerDashboard({
           if (existing) {
             existing.quantity += 1;
           } else {
-            inv.push({ id: generateUniqueId(), name: item.name, desc: item.desc, quantity: 1 });
+            inv.push({ 
+              id: generateUniqueId(), 
+              name: item.name, 
+              desc: item.desc, 
+              quantity: 1,
+              rarity: (item as any).rarity || "comum"
+            });
           }
           return { ...p, spBalance: p.spBalance - item.cost, inventory: inv };
         }
@@ -270,9 +276,9 @@ export default function PlayerDashboard({
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-zinc-800 pb-2 mb-4 animate-pulse">
               Conquistas Abertas
             </h3>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {inspectedPlayer.conquistas.length === 0 && (
-                <span className="text-xs text-slate-500 italic">
+                <span className="text-xs text-slate-500 italic col-span-full">
                   Nenhum dado cadastrado para este perfil.
                 </span>
               )}
@@ -280,13 +286,35 @@ export default function PlayerDashboard({
                 const isObj = c && typeof c === "object";
                 const name = isObj ? (c as any).name : c;
                 const desc = isObj ? (c as any).desc : "";
+                const rarity = isObj ? (c as any).rarity : "comum";
+
+                let colors = "text-slate-300 border-slate-500/30";
+                let iconClass = "text-slate-400";
+                let shadow = "";
+
+                if (rarity === "raro") {
+                  colors = "text-blue-400 border-blue-500/50";
+                  iconClass = "text-blue-500";
+                } else if (rarity === "epico") {
+                  colors = "text-purple-500 border-purple-500/50";
+                  iconClass = "text-purple-500";
+                } else if (rarity === "lendario") {
+                  colors = "text-orange-500 border-orange-500 font-black";
+                  iconClass = "text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.8)]";
+                  shadow = "shadow-[0_0_15px_rgba(249,115,22,0.6)]";
+                } else if (rarity === "especial") {
+                  colors = "text-yellow-400 border-yellow-400 font-black bg-yellow-900/10";
+                  iconClass = "text-yellow-400 animate-spin-3d drop-shadow-[0_0_10px_rgba(250,204,21,1)]";
+                  shadow = "shadow-[0_0_20px_rgba(250,204,21,0.8)]";
+                }
+
                 return (
                   <div
                     key={i}
-                    className="bg-zinc-900 border border-yellow-500/30 px-3 py-2 rounded text-xs text-yellow-400 tracking-wide flex flex-col gap-1 items-start max-w-full"
+                    className={`bg-zinc-900 border px-3 py-2 rounded text-xs tracking-wide flex flex-col gap-1 items-start max-w-full ${colors} ${shadow}`}
                   >
                     <span className="font-bold uppercase flex items-center gap-1.5 shrink-0">
-                      <Trophy className="w-3.5 h-3.5 text-yellow-500" /> {name}
+                      <Trophy className={`w-3.5 h-3.5 ${iconClass}`} /> {name}
                     </span>
                     {desc && (
                       <span className="text-[11px] text-slate-400 font-normal normal-case italic pl-5">
@@ -608,30 +636,41 @@ export default function PlayerDashboard({
                 .map((item) => {
                   const hasSP = player.spBalance >= item.cost;
                   const hasStock = item.stock > 0;
+                  const r = (item as any).rarity || "comum";
+
+                  let shopColor = "border-purple-500/30";
+                  let titleColor = "text-slate-200";
+                  let shadow = "";
+
+                  if (r === "raro") { shopColor = "border-blue-500/40"; titleColor = "text-blue-400"; }
+                  else if (r === "epico") { shopColor = "border-purple-500/60"; titleColor = "text-purple-400"; }
+                  else if (r === "lendario") { shopColor = "border-orange-500"; titleColor = "text-orange-500 font-bold"; shadow = "shadow-[0_0_12px_rgba(249,115,22,0.25)]"; }
+                  else if (r === "especial") { shopColor = "border-yellow-400 bg-yellow-900/5"; titleColor = "text-yellow-400 font-bold"; shadow = "shadow-[0_0_15px_rgba(250,204,21,0.35)]"; }
+
                   return (
                     <div
                       key={item.id}
-                      className="neon-card p-4 flex flex-col justify-between border-purple-500/30 group hover:border-purple-500 transition-all duration-300"
+                      className={`neon-card p-4 flex flex-col justify-between group transition-all duration-300 ${shopColor} ${shadow}`}
                     >
                       <div>
                         <div className="flex justify-between items-start mb-2">
-                          <h3 className="font-bold text-white text-lg group-hover:text-purple-400 transition-colors">
+                          <h3 className={`font-bold text-lg transition-colors ${titleColor}`}>
                             {item.name}
                           </h3>
-                          <ShoppingCart className="text-purple-400 opacity-50 group-hover:opacity-100 transition-opacity w-4.5 h-4.5" />
+                          <ShoppingCart className={`opacity-50 group-hover:opacity-100 transition-opacity w-4.5 h-4.5 ${titleColor}`} />
                         </div>
                         <p className="text-xs text-slate-400 mb-4 leading-relaxed">{item.desc}</p>
                       </div>
                       <div className="flex justify-between items-end pt-3 border-t border-zinc-800">
                         <div>
                           <div className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">
-                            SP Custo / Estoque
+                            SP Custo / Raridade
                           </div>
                           <div className="flex items-center gap-2 mt-1">
                             <span className="font-bold text-pink-400 flex items-center gap-0.5">
                               <Zap className="w-3.5 h-3.5" /> {item.cost}
                             </span>
-                            <span className="text-xs text-slate-500">| Qtd: {item.stock}</span>
+                            <span className={`text-[10px] uppercase font-bold ${titleColor}`}>| {r}</span>
                           </div>
                         </div>
                         <button
@@ -666,7 +705,7 @@ export default function PlayerDashboard({
                 Nenhum título honorário ou conquista desbloqueada. Complete diretrizes críticas para receber méritos do GM.
               </p>
             )}
-           {player.conquistas.map((c, i) => {
+            {player.conquistas.map((c, i) => {
               const isObj = c && typeof c === "object";
               const name = isObj ? (c as any).name : c;
               const desc = isObj ? (c as any).desc : "";
@@ -709,7 +748,7 @@ export default function PlayerDashboard({
                     <div className={`font-bold text-sm uppercase tracking-wider ${colors}`}>{name}</div>
                     {desc && <div className="text-xs text-slate-400 font-sans italic font-normal">{desc}</div>}
                   </div>
-              </div>
+                </div>
               );
             })}
           </div>
@@ -723,22 +762,34 @@ export default function PlayerDashboard({
                 <Box className="w-8 h-8 text-slate-700" /> INVENTÁRIO VAZIO NO MAINFRAME
               </div>
             )}
-            {player.inventory.map((item) => (
-              <div key={item.id} className="neon-card p-4 border-slate-500/30 flex items-start gap-3">
-                <div className="mt-1 text-cyan-400 shrink-0">
-                  <Cpu className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="font-bold text-slate-200 text-sm mb-1 uppercase">
-                    {item.name}{" "}
-                    <span className="text-pink-500 text-xs ml-1.5 font-sans font-medium">
-                      x{item.quantity}
-                    </span>
+            {player.inventory.map((item) => {
+              const r = (item as any).rarity || "comum";
+              let invColor = "border-slate-500/30";
+              let iconColor = "text-cyan-400";
+              let shadow = "";
+
+              if (r === "raro") { invColor = "border-blue-500/40"; iconColor = "text-blue-400"; }
+              else if (r === "epico") { invColor = "border-purple-500/50"; iconColor = "text-purple-400"; }
+              else if (r === "lendario") { invColor = "border-orange-500"; iconColor = "text-orange-500"; shadow = "shadow-[0_0_10px_rgba(249,115,22,0.2)]"; }
+              else if (r === "especial") { invColor = "border-yellow-400 bg-yellow-900/5"; iconColor = "text-yellow-400"; shadow = "shadow-[0_0_15px_rgba(250,204,21,0.3)]"; }
+
+              return (
+                <div key={item.id} className={`neon-card p-4 flex gap-3 items-start ${invColor} ${shadow}`}>
+                  <div className={`mt-1 shrink-0 ${iconColor}`}>
+                    <Cpu className={`w-5 h-5 ${r === "especial" ? "animate-spin-3d" : ""}`} />
                   </div>
-                  <div className="text-xs text-slate-400 leading-relaxed">{item.desc}</div>
+                  <div>
+                    <div className={`font-bold text-sm mb-1 uppercase ${iconColor}`}>
+                      {item.name}{" "}
+                      <span className="text-pink-500 text-xs ml-1.5 font-sans font-medium">
+                        x{item.quantity}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-400 leading-relaxed">{item.desc}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

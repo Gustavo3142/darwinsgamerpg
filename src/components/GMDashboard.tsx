@@ -93,13 +93,13 @@ export default function GMDashboard({
   const [newConquista, setNewConquista] = useState("");
   const [newConquistaDesc, setNewConquistaDesc] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  
-// Filtro de Missões
+
+  // Novos Estados das Funcionalidades Customizadas
   const [missionFilter, setMissionFilter] = useState("todas");
-  // Raridade da Conquista
   const [newConquistaRarity, setNewConquistaRarity] = useState("comum");
-  // Quantidade para remover do inventário
   const [removeQtyState, setRemoveQtyState] = useState<{ [key: number]: string }>({});
+  const [newItemRarity, setNewItemRarity] = useState("comum");
+  const [shopRarity, setShopRarity] = useState("comum");
 
   // Analytics State
   const [reportStartDate, setReportStartDate] = useState("");
@@ -213,7 +213,6 @@ export default function GMDashboard({
 
   const handleAddConquista = () => {
     if (!newConquista.trim() || !selectedPlayerId) return;
-    // Agora o objeto "item" inclui a propriedade "rarity" que lê o estado atualizado pelo menu select
     const item = { 
       name: newConquista.trim(), 
       desc: newConquistaDesc.trim(), 
@@ -534,6 +533,7 @@ export default function GMDashboard({
                 name: newItemName.trim(),
                 desc: newItemDesc.trim() || "Item injetado por protocolo mestre.",
                 quantity: Number(newItemQuantity),
+                rarity: newItemRarity,
               },
             ],
           };
@@ -541,7 +541,7 @@ export default function GMDashboard({
         return p;
       })
     );
-    addLog(targetId, "INVENTÁRIO", `Item concedido por GM: ${newItemName} (x${newItemQuantity})`);
+    addLog(targetId, "INVENTÁRIO", `Item concedido por GM: ${newItemName} (x${newItemQuantity}) [${newItemRarity}]`);
     setNewItemName("");
     setNewItemDesc("");
     setNewItemQuantity("1");
@@ -558,11 +558,9 @@ export default function GMDashboard({
           const item = p.inventory.find((i) => i.id === itemId);
           if (item) {
             itemRemovedName = item.name;
-            // Se a quantidade a remover for maior ou igual ao que ele tem, apaga o item todo
             if (item.quantity <= qtyToRemove) {
               return { ...p, inventory: p.inventory.filter((i) => i.id !== itemId) };
             } else {
-              // Se não, apenas subtrai a quantidade
               const newInv = p.inventory.map(i => i.id === itemId ? { ...i, quantity: i.quantity - qtyToRemove } : i);
               return { ...p, inventory: newInv };
             }
@@ -617,6 +615,7 @@ export default function GMDashboard({
       cost: Number(shopCost) || 100,
       stock: Number(shopStock) || 5,
       targetPlayerId: shopTargetId ? Number(shopTargetId) : null,
+      rarity: shopRarity,
     };
     setShopItems((prev) => [newItem, ...prev]);
     setShopName("");
@@ -638,7 +637,6 @@ export default function GMDashboard({
     const element = document.getElementById("report-container");
     if (!element) return;
 
-    // Load html2pdf from CDN
     const script = document.createElement("script");
     script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
     script.onload = () => {
@@ -889,7 +887,7 @@ export default function GMDashboard({
                           <select
                             value={newConquistaRarity}
                             onChange={(e) => setNewConquistaRarity(e.target.value)}
-                            className="gm-input !py-1.5 !text-xs flex-[1] px-1"
+                            className="gm-input !py-1.5 !text-xs flex-[1] px-1 text-slate-300"
                           >
                             <option value="comum">Comum</option>
                             <option value="raro">Raro</option>
@@ -919,7 +917,6 @@ export default function GMDashboard({
                           const desc = isObj ? (c as any).desc : "";
                           const rarity = isObj ? (c as any).rarity : "comum";
 
-                          // Definição de estilos por raridade
                           let colors = "text-slate-300 border-slate-500/30";
                           let iconClass = "text-slate-400";
                           let shadow = "";
@@ -1385,6 +1382,22 @@ export default function GMDashboard({
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                  Raridade do Item Mercado
+                </label>
+                <select
+                  value={shopRarity}
+                  onChange={(e) => setShopRarity(e.target.value)}
+                  className="gm-input mt-1 text-slate-300"
+                >
+                  <option value="comum">Comum</option>
+                  <option value="raro">Raro</option>
+                  <option value="epico">Épico</option>
+                  <option value="lendario">Lendário</option>
+                  <option value="especial">Especial</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                   Visibilidade Privada
                 </label>
                 <select
@@ -1419,58 +1432,71 @@ export default function GMDashboard({
               </p>
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {shopItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-zinc-900 border border-purple-500/20 p-4 rounded flex flex-col justify-between shadow-md"
-                >
-                  <div>
-                    <div className="flex justify-between items-start mb-1.5">
-                      <h3 className="font-bold text-purple-400 text-lg uppercase">{item.name}</h3>
-                      {item.targetPlayerId && (
-                        <span className="text-[9px] bg-purple-900/50 text-purple-300 px-2.5 py-0.5 rounded uppercase tracking-widest border border-purple-500/30 font-bold">
-                          Lock Privado
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-400 mb-4 leading-relaxed">{item.desc}</p>
-                  </div>
-                  <div className="flex justify-between items-end border-t border-zinc-800 pt-3 flex-wrap gap-2">
+              {shopItems.map((item) => {
+                const r = (item as any).rarity || "comum";
+                let shopColor = "border-purple-500/20";
+                let titleColor = "text-purple-400";
+                let shadow = "";
+
+                if (r === "raro") { shopColor = "border-blue-500/40"; titleColor = "text-blue-400"; }
+                else if (r === "epico") { shopColor = "border-purple-500/60"; titleColor = "text-purple-400"; }
+                else if (r === "lendario") { shopColor = "border-orange-500 font-bold"; titleColor = "text-orange-500"; shadow = "shadow-[0_0_10px_rgba(249,115,22,0.2)]"; }
+                else if (r === "especial") { shopColor = "border-yellow-400 font-bold bg-yellow-900/5"; titleColor = "text-yellow-400"; shadow = "shadow-[0_0_15px_rgba(250,204,21,0.3)]"; }
+
+                return (
+                  <div
+                    key={item.id}
+                    className={`bg-zinc-900 border p-4 rounded flex flex-col justify-between ${shopColor} ${shadow}`}
+                  >
                     <div>
-                      <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-0.5">
-                        Valores / Quantidade
+                      <div className="flex justify-between items-start mb-1.5">
+                        <h3 className={`font-bold text-lg uppercase ${titleColor}`}>{item.name}</h3>
+                        <div className="flex gap-1.5">
+                          {item.targetPlayerId && (
+                            <span className="text-[9px] bg-purple-900/50 text-purple-300 px-2 py-0.5 rounded uppercase tracking-widest border border-purple-500/30 font-bold">
+                              Privado
+                            </span>
+                          )}
+                          <span className={`text-[9px] px-2 py-0.5 rounded uppercase tracking-widest font-bold bg-zinc-950 border ${shopColor} ${titleColor}`}>
+                            {r}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-bold text-pink-400 text-sm flex items-center gap-0.5 animate-pulse">
-                          <Zap className="w-3.5 h-3.5" /> {item.cost}
-                        </span>
-                        <span
-                          className={`text-sm font-bold ${
-                            item.stock > 0 ? "text-cyan-400" : "text-red-500"
-                          }`}
-                        >
-                          {item.stock > 0 ? `${item.stock} UN` : "ESGOTADO"}
-                        </span>
-                      </div>
+                      <p className="text-xs text-slate-400 mb-4 leading-relaxed">{item.desc}</p>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => restockItem(item.id)}
-                        className="bg-zinc-800 hover:bg-purple-600 text-[10px] text-white px-3 py-1.5 rounded uppercase font-bold transition-all duration-200 cursor-pointer border border-zinc-700 hover:border-purple-500"
-                      >
-                        Restocar (+5)
-                      </button>
-                      <button
-                        onClick={() => handleDeleteShopItem(item.id)}
-                        className="bg-zinc-800 hover:bg-red-600 text-white px-2.5 py-1.5 rounded transition-all duration-200 cursor-pointer border border-zinc-700 hover:border-red-500"
-                        title="Excluir item da loja"
-                      >
-                        <Trash className="w-3.5 h-3.5" />
-                      </button>
+                    <div className="flex justify-between items-end border-t border-zinc-800 pt-3 flex-wrap gap-2">
+                      <div>
+                        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-0.5">
+                          Valores / Quantidade
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-bold text-pink-400 text-sm flex items-center gap-0.5 animate-pulse">
+                            <Zap className="w-3.5 h-3.5" /> {item.cost}
+                          </span>
+                          <span className={`text-sm font-bold ${item.stock > 0 ? "text-cyan-400" : "text-red-500"}`}>
+                            {item.stock > 0 ? `${item.stock} UN` : "ESGOTADO"}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => restockItem(item.id)}
+                          className="bg-zinc-800 hover:bg-purple-600 text-[10px] text-white px-3 py-1.5 rounded uppercase font-bold transition-all duration-200 cursor-pointer border border-zinc-700 hover:border-purple-500"
+                        >
+                          Restocar (+5)
+                        </button>
+                        <button
+                          onClick={() => handleDeleteShopItem(item.id)}
+                          className="bg-zinc-800 hover:bg-red-600 text-white px-2.5 py-1.5 rounded transition-all duration-200 cursor-pointer border border-zinc-700 hover:border-red-500"
+                          title="Excluir item da loja"
+                        >
+                          <Trash className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -1613,13 +1639,13 @@ export default function GMDashboard({
               </h3>
 
               <div className="bg-zinc-950 p-4 border border-zinc-850 rounded space-y-4">
-                <div className="flex gap-2 flex-wrap md:flex-nowrap">
+                <div className="flex gap-2 flex-wrap">
                   <input
                     type="text"
                     value={newItemName}
                     onChange={(e) => setNewItemName(e.target.value)}
                     placeholder="Nome do Item..."
-                    className="gm-input !py-1.5 !text-sm flex-1 min-w-[150px]"
+                    className="gm-input !py-1.5 !text-sm flex-[2] min-w-[150px]"
                   />
                   <input
                     type="number"
@@ -1627,14 +1653,25 @@ export default function GMDashboard({
                     onChange={(e) => setNewItemQuantity(e.target.value)}
                     placeholder="Qtd"
                     min="1"
-                    className="gm-input !py-1.5 !text-sm w-20 text-center font-bold"
+                    className="gm-input !py-1.5 !text-sm w-16 text-center font-bold"
                   />
+                  <select
+                    value={newItemRarity}
+                    onChange={(e) => setNewItemRarity(e.target.value)}
+                    className="gm-input !py-1.5 !text-sm flex-[1] px-1 text-slate-300"
+                  >
+                    <option value="comum">Comum</option>
+                    <option value="raro">Raro</option>
+                    <option value="epico">Épico</option>
+                    <option value="lendario">Lendário</option>
+                    <option value="especial">Especial</option>
+                  </select>
                   <input
                     type="text"
                     value={newItemDesc}
                     onChange={(e) => setNewItemDesc(e.target.value)}
                     placeholder="Descrição..."
-                    className="gm-input !py-1.5 !text-xs flex-1 min-w-[150px]"
+                    className="gm-input !py-1.5 !text-xs flex-[2] min-w-[150px]"
                   />
                   <button
                     type="button"
@@ -1646,48 +1683,51 @@ export default function GMDashboard({
                 </div>
 
                 <div className="space-y-1.5 mt-4 max-h-[250px] overflow-y-auto pr-2">
-                 {(selectedCreditPlayer.inventory || []).map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex justify-between items-center bg-zinc-900/50 border border-cyan-500/10 p-2.5 rounded hover:border-cyan-500/30 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Cpu className="text-cyan-400 w-4 h-4" />
-                        <div className="flex flex-col">
-                          <span className="text-sm font-bold text-cyan-400">
-                            {item.name} <span className="text-pink-500 text-xs ml-1 font-sans">x{item.quantity}</span>
-                          </span>
-                          <span className="text-[10px] text-slate-400">{item.desc}</span>
+                 {(selectedCreditPlayer.inventory || []).map((item) => {
+                    const r = (item as any).rarity || "comum";
+                    let itemColor = "text-cyan-400 border-cyan-500/10";
+                    if (r === "raro") itemColor = "text-blue-400 border-blue-500/30";
+                    else if (r === "epico") itemColor = "text-purple-400 border-purple-500/30";
+                    else if (r === "lendario") itemColor = "text-orange-500 border-orange-500/40 shadow-[0_0_10px_rgba(249,115,22,0.2)]";
+                    else if (r === "especial") itemColor = "text-yellow-400 border-yellow-400/50 bg-yellow-900/5 shadow-[0_0_12px_rgba(250,204,21,0.3)]";
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={`flex justify-between items-center bg-zinc-900/50 border p-2.5 rounded transition-all ${itemColor}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Cpu className={`w-4 h-4 ${r === "especial" ? "animate-spin-3d" : ""}`} />
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold">
+                              {item.name} <span className="text-pink-500 text-xs ml-1 font-sans">x{item.quantity}</span>
+                            </span>
+                            <span className="text-[10px] text-slate-400">{item.desc}</span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="1"
+                            max={item.quantity}
+                            placeholder="Qtd"
+                            value={removeQtyState[item.id] || ""}
+                            onChange={(e) => setRemoveQtyState({ ...removeQtyState, [item.id]: e.target.value })}
+                            className="gm-input !py-1 !px-2 !text-xs w-16 text-center"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItemFromSelected(selectedCreditPlayer.id, item.id)}
+                            className="text-slate-400 hover:text-red-500 p-2 transition-colors cursor-pointer bg-zinc-950 border border-zinc-800 rounded"
+                            title="Remover quantidade"
+                          >
+                            <Trash className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
-                      
-                      {/* NOVA ÁREA DOS BOTÕES: Input de quantidade + Lixeira */}
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min="1"
-                          max={item.quantity}
-                          placeholder="Qtd"
-                          value={removeQtyState[item.id] || ""}
-                          onChange={(e) => setRemoveQtyState({ ...removeQtyState, [item.id]: e.target.value })}
-                          className="gm-input !py-1 !px-2 !text-xs w-16 text-center"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItemFromSelected(selectedCreditPlayer.id, item.id)}
-                          className="text-slate-500 hover:text-red-500 p-2 transition-colors cursor-pointer bg-zinc-950 border border-zinc-800 rounded"
-                          title="Remover quantidade informada"
-                        >
-                          <Trash className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                    </div>
-                  ))}
-                        <Trash className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {(!selectedCreditPlayer.inventory || selectedCreditPlayer.inventory.length === 0) && (
                     <p className="text-xs text-slate-500 italic p-4 text-center border border-dashed border-zinc-800 rounded">
                       Nenhum item alocado no inventário deste agente.
@@ -1954,86 +1994,86 @@ export default function GMDashboard({
                 return true; 
               })
               .map((m) => {
-              const claimedCount = (m.claimedBy || []).length;
-              return (
-                <div
-                  key={m.id}
-                  className="bg-zinc-900 border border-zinc-850 p-5 rounded relative overflow-hidden group shadow-md hover:border-zinc-700 transition"
-                >
-                  {m.targetPlayerId ? (
-                    <div className="absolute top-0 right-0 bg-purple-600 text-white text-[9px] font-bold px-3 py-1 rounded-bl uppercase tracking-widest font-sans">
-                      Alvo: {players.find((p) => p.id === m.targetPlayerId)?.name}
-                    </div>
-                  ) : m.targetSquadId ? (
-                    <div className="absolute top-0 right-0 bg-blue-600 text-white text-[9px] font-bold px-3 py-1 rounded-bl uppercase tracking-widest font-sans">
-                      Esquadrão: {squads.find((s) => s.id === m.targetSquadId)?.name}
-                    </div>
-                  ) : (
-                    <div className="absolute top-0 right-0 bg-cyan-600 text-white text-[9px] font-bold px-3 py-1 rounded-bl uppercase tracking-widest font-sans">
-                      Missão Pública
-                    </div>
-                  )}
+                const claimedCount = (m.claimedBy || []).length;
+                return (
+                  <div
+                    key={m.id}
+                    className="bg-zinc-900 border border-zinc-850 p-5 rounded relative overflow-hidden group shadow-md hover:border-zinc-700 transition"
+                  >
+                    {m.targetPlayerId ? (
+                      <div className="absolute top-0 right-0 bg-purple-600 text-white text-[9px] font-bold px-3 py-1 rounded-bl uppercase tracking-widest font-sans">
+                        Alvo: {players.find((p) => p.id === m.targetPlayerId)?.name}
+                      </div>
+                    ) : m.targetSquadId ? (
+                      <div className="absolute top-0 right-0 bg-blue-600 text-white text-[9px] font-bold px-3 py-1 rounded-bl uppercase tracking-widest font-sans">
+                        Esquadrão: {squads.find((s) => s.id === m.targetSquadId)?.name}
+                      </div>
+                    ) : (
+                      <div className="absolute top-0 right-0 bg-cyan-600 text-white text-[9px] font-bold px-3 py-1 rounded-bl uppercase tracking-widest font-sans">
+                        Missão Pública
+                      </div>
+                    )}
 
-                  <h3 className="font-bold text-xl text-white pr-20">{m.title}</h3>
-                  <p className="text-xs text-slate-400 mt-2 mb-4 leading-relaxed">{m.desc}</p>
-                  <div className="flex justify-between items-end flex-wrap gap-3 border-t border-zinc-800 pt-3">
-                    <div className="flex gap-4">
-                      <span className="bg-pink-500/10 border border-pink-500/20 text-pink-400 px-3 py-1 rounded text-xs font-bold tracking-widest">
-                        +{m.sp} SP
-                      </span>
-                      <span className="bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 px-3 py-1 rounded text-xs font-bold tracking-widest">
-                        +{m.xp} XP
-                      </span>
-                      <span className="bg-purple-500/10 border border-purple-500/20 text-purple-400 px-3 py-1 rounded text-[11px] font-bold">
-                        Stock: {m.quantity - claimedCount} / {m.quantity}
-                      </span>
-                    </div>
+                    <h3 className="font-bold text-xl text-white pr-20">{m.title}</h3>
+                    <p className="text-xs text-slate-400 mt-2 mb-4 leading-relaxed">{m.desc}</p>
+                    <div className="flex justify-between items-end flex-wrap gap-3 border-t border-zinc-800 pt-3">
+                      <div className="flex gap-4">
+                        <span className="bg-pink-500/10 border border-pink-500/20 text-pink-400 px-3 py-1 rounded text-xs font-bold tracking-widest">
+                          +{m.sp} SP
+                        </span>
+                        <span className="bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 px-3 py-1 rounded text-xs font-bold tracking-widest">
+                          +{m.xp} XP
+                        </span>
+                        <span className="bg-purple-500/10 border border-purple-500/20 text-purple-400 px-3 py-1 rounded text-[11px] font-bold">
+                          Stock: {m.quantity - claimedCount} / {m.quantity}
+                        </span>
+                      </div>
 
-                    <div className="flex items-center gap-2">
-                      {!m.targetPlayerId && !m.targetSquadId && (
-                        <select
-                          onChange={(e) => setMissionWinnerId(e.target.value)}
-                          className="gm-input !py-1 !text-xs !w-auto"
+                      <div className="flex items-center gap-2">
+                        {!m.targetPlayerId && !m.targetSquadId && (
+                          <select
+                            onChange={(e) => setMissionWinnerId(e.target.value)}
+                            className="gm-input !py-1 !text-xs !w-auto"
+                          >
+                            <option value="">Quem Concluiu?</option>
+                            <optgroup label="Jogadores Individuais">
+                              {players.map((p) => (
+                                <option key={`p_${p.id}`} value={p.id}>
+                                  {p.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Esquadrões Inteiros">
+                              {squads.map((s) => (
+                                <option key={`s_${s.id}`} value={`squad_${s.id}`}>
+                                  Esquadrão: {s.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          </select>
+                        )}
+
+                        <button
+                          onClick={() => handleCompleteMission(m.id, missionWinnerId)}
+                          className="text-green-400 hover:text-green-300 text-xs font-semibold uppercase flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700/60 px-3 py-1.5 rounded transition border border-zinc-750 cursor-pointer"
                         >
-                          <option value="">Quem Concluiu?</option>
-                          <optgroup label="Jogadores Individuais">
-                            {players.map((p) => (
-                              <option key={`p_${p.id}`} value={p.id}>
-                                {p.name}
-                              </option>
-                            ))}
-                          </optgroup>
-                          <optgroup label="Esquadrões Inteiros">
-                            {squads.map((s) => (
-                              <option key={`s_${s.id}`} value={`squad_${s.id}`}>
-                                Esquadrão: {s.name}
-                              </option>
-                            ))}
-                          </optgroup>
-                        </select>
-                      )}
-
-                      <button
-                        onClick={() => handleCompleteMission(m.id, missionWinnerId)}
-                        className="text-green-400 hover:text-green-300 text-xs font-semibold uppercase flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700/60 px-3 py-1.5 rounded transition border border-zinc-750 cursor-pointer"
-                      >
-                        <Check className="w-3.5 h-3.5 mr-0.5" /> Pagar Contrato
-                      </button>
-                      <button
-                        onClick={() => deleteMission(m.id)}
-                        className="text-red-500 hover:text-red-400 text-xs font-semibold uppercase flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700/60 px-3 py-1.5 rounded transition border border-zinc-750 cursor-pointer"
-                        title="Deletar"
-                      >
-                        <Trash className="w-3.5 h-3.5" />
-                      </button>
+                          <Check className="w-3.5 h-3.5 mr-0.5" /> Pagar Contrato
+                        </button>
+                        <button
+                          onClick={() => deleteMission(m.id)}
+                          className="text-red-500 hover:text-red-400 text-xs font-semibold uppercase flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700/60 px-3 py-1.5 rounded transition border border-zinc-750 cursor-pointer"
+                          title="Deletar"
+                        >
+                          <Trash className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
             {missions.length === 0 && (
               <p className="text-slate-500 italic p-8 text-center border border-dashed border-zinc-800 rounded">
-                Nenhuma diretriz de missão ativa no servidor.
+                Nenhuma diretriz de missão activa no servidor.
               </p>
             )}
           </div>
@@ -2187,7 +2227,6 @@ export default function GMDashboard({
                 </div>
               </div>
 
-              {/* Botão de seleção rápida do jogador, logo abaixo dos filtros de data */}
               <div className="border-t border-zinc-800/50 pt-3 flex flex-col gap-2">
                 <span className="text-[10px] uppercase text-cyan-400 font-bold tracking-wider">
                   Selecionar Operador para Filtro de Logs:
