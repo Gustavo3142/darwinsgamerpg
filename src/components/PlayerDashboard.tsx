@@ -709,7 +709,7 @@ export default function PlayerDashboard({
                     <div className={`font-bold text-sm uppercase tracking-wider ${colors}`}>{name}</div>
                     {desc && <div className="text-xs text-slate-400 font-sans italic font-normal">{desc}</div>}
                   </div>
-                </div>
+              </div>
               );
             })}
           </div>
