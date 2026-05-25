@@ -90,7 +90,7 @@ const defaultShopItems: ShopItem[] = [
 ];
 
 export default function App() {
-  const [sessionType, setSessionType] = useState<"none" | "player" | "gm">("none");
+  const [sessionType, setSessionType] = useState<"none" | "player" | "gm" | "none">("none");
   const [view, setView] = useState<"player" | "gm">("player");
   const [loggedPlayerId, setLoggedPlayerId] = useState<number | null>(null);
 
@@ -105,8 +105,9 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  // Prevent multiple overlapping updates on boot
+  // Impedir disparos sobrepostos e travar gravação automática antes do download
   const initialFetchDone = useRef(false);
+  const isDataLoaded = useRef(false);
 
   // Sync state reference to avoid endless loop updates
   const skipNextPush = useRef<{ [key: string]: boolean }>({});
@@ -140,6 +141,9 @@ export default function App() {
         setLogs(cloudDatabase.logs || []);
         setGeminiKey(cloudDatabase.geminiKey || "");
 
+        // Download concluído com sucesso, liberar observadores
+        isDataLoaded.current = true;
+
         if (!silent) showToast("Mainframe Sincronizado!", "success");
       } else {
         throw new Error("Resposta de sincronia inválida");
@@ -152,6 +156,8 @@ export default function App() {
         setSquads(defaultSquads);
         setShopItems(defaultShopItems);
       }
+      // Liberar observadores mesmo em modo local offline
+      isDataLoaded.current = true;
     } finally {
       if (!silent) setIsSyncing(false);
     }
@@ -181,29 +187,29 @@ export default function App() {
     }
   }, []);
 
-  // 2. Continuous individual observers to persist state back to Node/GAS proxy
+  // 2. Continuous individual observers - só salvam após o carregamento inicial terminar
   useEffect(() => {
-    if (players.length > 0) pushToMainframe("players", players);
+    if (isDataLoaded.current && players.length > 0) pushToMainframe("players", players);
   }, [players]);
 
   useEffect(() => {
-    if (initialFetchDone.current) pushToMainframe("missions", missions);
+    if (isDataLoaded.current) pushToMainframe("missions", missions);
   }, [missions]);
 
   useEffect(() => {
-    if (squads.length > 0) pushToMainframe("dg_groups", squads);
+    if (isDataLoaded.current && squads.length > 0) pushToMainframe("dg_groups", squads);
   }, [squads]);
 
   useEffect(() => {
-    if (shopItems.length > 0) pushToMainframe("dg_shop", shopItems);
+    if (isDataLoaded.current && shopItems.length > 0) pushToMainframe("dg_shop", shopItems);
   }, [shopItems]);
 
   useEffect(() => {
-    if (logs.length > 0) pushToMainframe("logs", logs);
+    if (isDataLoaded.current && logs.length > 0) pushToMainframe("logs", logs);
   }, [logs]);
 
   useEffect(() => {
-    if (geminiKey) pushToMainframe("ai_key", geminiKey);
+    if (isDataLoaded.current && geminiKey) pushToMainframe("ai_key", geminiKey);
   }, [geminiKey]);
 
   // When GM inspects operational sheets, pre-select the first player if none is chosen
@@ -359,7 +365,7 @@ export default function App() {
             <button
               onClick={() => {
                 setShowSettings(false);
-                showToast("Key atualizada.", "success");
+                showToast("Key updated.", "success");
               }}
               className="px-5 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded font-bold text-xs uppercase tracking-widest transition cursor-pointer"
             >
