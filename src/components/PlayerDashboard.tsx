@@ -262,7 +262,7 @@ export default function PlayerDashboard({
                     <div className="h-1 bg-zinc-800 rounded w-full overflow-hidden">
                       <div
                         className="h-full bg-cyan-500 opacity-50 transition-all duration-500"
-                        style={{ width: `${(valNum / rivalMax) * 100}%` }}
+                        style={{ width: `${valNum / rivalMax * 100}%` }}
                       ></div>
                     </div>
                   </div>
@@ -276,7 +276,7 @@ export default function PlayerDashboard({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {inspectedPlayer.conquistas.length === 0 && (
                 <span className="text-xs text-slate-500 italic col-span-full">
-                  Nenhum dado cadastrado para este perfil.
+                  Nenhum data cadastrado para este perfil.
                 </span>
               )}
               {inspectedPlayer.conquistas.map((c, i) => {
@@ -356,7 +356,7 @@ export default function PlayerDashboard({
               <div
                 className="hud-progress-fill"
                 style={{
-                  width: `${Math.min(100, (player.currentXp / player.totalXpForLevel) * 100)}%`,
+                  width: `${Math.min(100, player.currentXp / player.totalXpForLevel * 100)}%`,
                 }}
               ></div>
             </div>
@@ -508,7 +508,7 @@ export default function PlayerDashboard({
                       <div className="h-1 w-full bg-zinc-800 rounded overflow-hidden">
                         <div
                           className="h-full bg-cyan-500"
-                          style={{ width: `${(value / maxAttr) * 100}%` }}
+                          style={{ width: `${value / maxAttr * 100}%` }}
                         ></div>
                       </div>
                     </div>
@@ -624,7 +624,7 @@ export default function PlayerDashboard({
           </div>
         )}
 
-        {/* TAB 3: BLACK MARKET COM VISUALIZAÇÃO DE QUANTIDADE */}
+        {/* TAB 3: BLACK MARKET COM VALIDAÇÃO DE SQUAD E ESTOQUE VISÍVEL */}
         {activeTab === "mercado" && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -666,26 +666,18 @@ export default function PlayerDashboard({
                       </div>
                       <div className="flex justify-between items-end pt-3 border-t border-zinc-800">
                         <div>
-                          <div className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">
-                            SP Custo / Raridade / Estoque
-                          </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="font-bold text-pink-400 flex items-center gap-0.5">
-                              <Zap className="w-3.5 h-3.5" /> {item.cost}
-                            </span>
-                            <span className={`text-[10px] uppercase font-bold ${titleColor}`}>| {r}</span>
-                            <span className={`text-[10px] font-bold ${item.stock > 0 ? "text-cyan-400" : "text-red-500"}`}>
-                              | Qtd: {item.stock}
-                            </span>
+                          <div className="text-[10px] uppercase font-bold text-slate-500">Preço / Disponível / Categoria</div>
+                          <div className="text-xs font-bold text-pink-400 mt-0.5">
+                            💰 {item.cost} SP <span className="text-cyan-400">| Qtd: {item.stock}</span> <span className={`uppercase ${titleColor}`}>| {r}</span>
                           </div>
                         </div>
                         <button
                           onClick={() => handleBuyItem(item)}
                           disabled={!hasSP || !hasStock}
-                          className={`px-4 py-1.5 rounded text-[10px] font-bold uppercase tracking-widest transition-all duration-200 cursor-pointer ${
+                          className={`px-4 py-1.5 rounded text-xs font-bold uppercase cursor-pointer ${
                             hasSP && hasStock
-                              ? "bg-purple-600 hover:bg-purple-500 text-white hover:shadow-[0_0_10px_rgba(168,85,247,0.4)]"
-                              : "bg-zinc-800 text-slate-500 cursor-not-allowed"
+                              ? "bg-purple-600 text-white"
+                              : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
                           }`}
                         >
                           {hasStock ? "Adquirir" : "Esgotado"}
@@ -694,11 +686,6 @@ export default function PlayerDashboard({
                     </div>
                   );
                 })}
-              {shopItems.length === 0 && (
-                <p className="text-slate-500 italic text-sm col-span-full text-center py-8">
-                  Nenhum lote catalogado no Mercado Negro do servidor neste momento.
-                </p>
-              )}
             </div>
           </div>
         )}

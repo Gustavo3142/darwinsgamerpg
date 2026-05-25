@@ -7,16 +7,26 @@ interface MainGateProps {
   onGMLogin: () => void;
   onPlayerLogin: (playerId: number) => void;
   showToast: (msg: string, type?: "success" | "error") => void;
+  gmUser?: string;       // Injetado para credenciais dinâmicas da planilha
+  gmPassword?: string;   // Injetado para credenciais dinâmicas da planilha
 }
 
-export default function MainGate({ players, onGMLogin, onPlayerLogin, showToast }: MainGateProps) {
+export default function MainGate({
+  players,
+  onGMLogin,
+  onPlayerLogin,
+  showToast,
+  gmUser,
+  gmPassword,
+}: MainGateProps) {
   const [loginMode, setLoginMode] = useState<"player" | "gm" | null>(null);
   const [user, setUser] = useState("");
   const [pass, setPass] = useState("");
 
   const handleGMLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (user === "admin" && pass === "admin") {
+    // Validação inteligente usando os dados dinâmicos da planilha ou os fallbacks padrão
+    if (user === (gmUser || "admin") && pass === (gmPassword || "admin")) {
       onGMLogin();
       showToast("Acesso autorizado. Bem-vindo, GM.", "success");
     } else {

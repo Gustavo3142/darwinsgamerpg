@@ -107,6 +107,8 @@ interface RPGDB {
   shopItems: any[];
   logs: any[];
   geminiKey: string;
+  gmUser?: string;       // Adicionado exclusivamente para credenciais dinâmicas
+  gmPassword?: string;   // Adicionado exclusivamente para credenciais dinâmicas
 }
 
 const defaultDB: RPGDB = {
@@ -116,6 +118,8 @@ const defaultDB: RPGDB = {
   shopItems: initialShopItems,
   logs: [],
   geminiKey: "",
+  gmUser: "admin",       // Valor de contingência padrão
+  gmPassword: "admin"    // Valor de contingência padrão
 };
 
 // Helper: load local db
@@ -131,6 +135,8 @@ function loadLocalDB(): RPGDB {
         shopItems: parsed.shopItems || initialShopItems,
         logs: parsed.logs || [],
         geminiKey: parsed.geminiKey || "",
+        gmUser: parsed.gmUser || "admin",
+        gmPassword: parsed.gmPassword || "admin"
       };
     }
   } catch (err) {
@@ -176,6 +182,9 @@ app.get("/api/mainframe", async (req, res) => {
       if (cloudDatabase.dg_shop) activeDB.shopItems = JSON.parse(cloudDatabase.dg_shop);
       if (cloudDatabase.logs) activeDB.logs = JSON.parse(cloudDatabase.logs);
       if (cloudDatabase.ai_key) activeDB.geminiKey = cloudDatabase.ai_key;
+      // Captura dinâmica das chaves customizadas de login caso configuradas na planilha
+      if (cloudDatabase.gm_user) activeDB.gmUser = cloudDatabase.gm_user;
+      if (cloudDatabase.gm_pass) activeDB.gmPassword = cloudDatabase.gm_pass;
       
       saveLocalDB(activeDB);
     }
@@ -190,6 +199,8 @@ app.get("/api/mainframe", async (req, res) => {
     shopItems: activeDB.shopItems,
     logs: activeDB.logs,
     geminiKey: activeDB.geminiKey,
+    gmUser: activeDB.gmUser || "admin",
+    gmPassword: activeDB.gmPassword || "admin"
   });
 });
 
@@ -210,6 +221,8 @@ app.post("/api/mainframe", async (req, res) => {
     else if (key === "dg_shop") activeDB.shopItems = parsedValue;
     else if (key === "logs") activeDB.logs = parsedValue;
     else if (key === "ai_key") activeDB.geminiKey = parsedValue;
+    else if (key === "gm_user") activeDB.gmUser = parsedValue;
+    else if (key === "gm_pass") activeDB.gmPassword = parsedValue;
 
     saveLocalDB(activeDB);
 

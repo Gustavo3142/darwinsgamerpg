@@ -94,7 +94,7 @@ export default function GMDashboard({
   const [newConquistaDesc, setNewConquistaDesc] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Estados das Funcionalidades Customizadas
+  // Estados das Funcionalidades Customizadas anteriores
   const [missionFilter, setMissionFilter] = useState("todas");
   const [newConquistaRarity, setNewConquistaRarity] = useState("comum");
   const [removeQtyState, setRemoveQtyState] = useState<{ [key: number]: string }>({});
@@ -105,14 +105,22 @@ export default function GMDashboard({
   const [logFilterType, setLogFilterType] = useState("todos");
   const [logTargetId, setLogTargetId] = useState("");
 
-  // Estados Customizados para Penalidades (Ponto 1)
-  const [degradeTargetType, setDefragTargetType] = useState("player");
+  // Ponto 1: Estrutura de seleção em cascata para penalidades / degradação
+  const [degradeTargetType, setDegradeTargetType] = useState("player");
+  const [degradePlayerId, setDegradePlayerId] = useState(players[0]?.id?.toString() || "");
   const [degradeSquadId, setDegradeSquadId] = useState(squads[0]?.id?.toString() || "");
 
-  // Estados Customizados para Fornecedor Estilo Missões (Ponto 2)
+  // Ponto 2: Privilégios de Item estilo Missões
   const [shopVisibilityType, setShopVisibilityType] = useState("geral");
   const [shopTargetPlayerId, setShopTargetPlayerId] = useState(players[0]?.id?.toString() || "");
   const [shopTargetSquadId, setShopTargetSquadId] = useState(squads[0]?.id?.toString() || "");
+
+  // Ponto 2: Banco de dados fixo e reutilizável de missões prontas (Templates)
+  const missionTemplates = [
+    { title: "Incursão Datacenter Arasaka", desc: "Infiltre o subnível 4, drene os núcleos criptografados e sabote o gerador principal sem detecção.", sp: 200, xp: 450 },
+    { title: "Extração de Informante Corp", desc: "Escolte o desertor da Militech em segurança pelas docas industriais até o ponto de extração.", sp: 150, xp: 300 },
+    { title: "Limpeza de Malware Sindicato", desc: "Expurgue a infecção cibernética dos servidores locais infectados por uma facção hacker rival.", sp: 100, xp: 200 }
+  ];
 
   // Analytics State
   const [reportStartDate, setReportStartDate] = useState("");
@@ -154,7 +162,6 @@ export default function GMDashboard({
   const [newItemQuantity, setNewItemQuantity] = useState("1");
 
   // Degrade State
-  const [degradePlayerId, setDegradePlayerId] = useState(players[0]?.id?.toString() || "");
   const [degradeXp, setDegradeXp] = useState("0");
   const [degradeSp, setDegradeSp] = useState("0");
   const [degradeAttrKey, setDegradeAttrKey] = useState("");
@@ -169,7 +176,6 @@ export default function GMDashboard({
   const [shopDesc, setShopDesc] = useState("");
   const [shopCost, setShopCost] = useState("100");
   const [shopStock, setShopStock] = useState("5");
-  const [shopTargetId, setShopTargetId] = useState("");
 
   const selectedPlayer = players.find((p) => p.id === selectedPlayerId) || players[0];
   const selectedCreditPlayer = players.find((p) => p.id === Number(creditPlayerId)) || players[0];
@@ -187,7 +193,7 @@ export default function GMDashboard({
       setPlayers((prev) => prev.map((p) => (p.id === editForm.id ? editForm : p)));
       addLog(editForm.id, "STATUS", `Atualização manual de status e/ou credenciais pelo GM.`);
       setIsEditing(false);
-      showToast("Dados do jogador updated no Mainframe.", "success");
+      showToast("Dados do jogador atualizados no Mainframe.", "success");
     }
   };
 
@@ -468,7 +474,7 @@ export default function GMDashboard({
     setCreditAttrValue("0");
   };
 
-  // Lógica de Penalidades com Suporte a Grupo (Ponto 1)
+  // Ponto 1: Lógica de Penalidades Avançada com Suporte Dinâmico a Grupo / Esquadrão em Cascata
   const handleDegrade = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -638,6 +644,7 @@ export default function GMDashboard({
     showToast("Esquadrão dissolvido.", "success");
   };
 
+  // Ponto 2: Criação de itens de Mercado com suporte a privilégios e filtros avançados (Público/Squad/Jogador)
   const handleCreateShopItem = (e: React.FormEvent) => {
     e.preventDefault();
     const newItem: ShopItem = {
@@ -1339,7 +1346,7 @@ export default function GMDashboard({
         </div>
       )}
 
-      {/* VIEW: FORNECEDOR / MERCHANDISE */}
+      {/* VIEW: FORNECEDOR COM FILTRO MULTI-PRIVILÉGIOS */}
       {gmTab === "fornecedor" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="neon-card p-6 h-fit border-purple-500/30">
@@ -1417,7 +1424,8 @@ export default function GMDashboard({
                   <option value="especial">Especial</option>
                 </select>
               </div>
-              {/* Privilégios de Item como Missões (Ponto 2) */}
+              
+              {/* Ponto 2: Atribuição de privilégios e visibilidades avançadas de loja */}
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                   Visibilidade Privilégio
@@ -1468,6 +1476,7 @@ export default function GMDashboard({
                   </select>
                 </div>
               )}
+              
               <button
                 type="submit"
                 className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 mt-2 rounded uppercase tracking-widest text-sm transition-all duration-300 shadow-[0_0_15px_rgba(147,51,234,0.3)] cursor-pointer"
@@ -1563,7 +1572,7 @@ export default function GMDashboard({
         </div>
       )}
 
-      {/* VIEW: CREDIT INJECTOR & USER INVENTORY GESTION */}
+      {/* VIEW: RESOURCE INJECTOR */}
       {gmTab === "creditar" && (
         <div className="neon-card p-6 md:p-8 space-y-6 max-w-3xl mx-auto bg-zinc-900/50 animate-fade-in border-cyan-500/30 shadow-2xl">
           <h2 className="text-xl font-bold text-cyan-400 uppercase tracking-widest border-b border-cyan-500/20 pb-2 mb-6 flex items-center gap-1.5">
@@ -1801,7 +1810,7 @@ export default function GMDashboard({
         </div>
       )}
 
-      {/* VIEW: DEGRADE PENALTIES COM SUPORTE EM CASCATA (Ponto 1) */}
+      {/* VIEW: DEGRADE PENALTIES COM SUPORTE EM CASCATA IDÊNTICO AO INJETOR */}
       {gmTab === "degradacao" && (
         <div className="neon-card p-6 md:p-8 space-y-6 max-w-3xl mx-auto bg-zinc-900/50 animate-fade-in border-red-500/30 shadow-2xl">
           <h2 className="text-xl font-bold text-red-400 uppercase tracking-widest border-b border-red-500/20 pb-2 mb-6 flex items-center gap-1.5">
@@ -1936,132 +1945,162 @@ export default function GMDashboard({
       {/* VIEW: DIRECTIVES & CONTRACTS PUBLICATION */}
       {gmTab === "missoes" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="neon-card p-6 h-fit bg-zinc-900/50">
-            <h2 className="text-base font-bold text-pink-500 uppercase tracking-widest border-b border-pink-500/20 pb-2 mb-4">
-              Nova Diretriz / Missão Contract
-            </h2>
-            <form onSubmit={handleCreateMission} className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">
-                  Título do Contrato
-                </label>
-                <input
-                  required
-                  type="text"
-                  value={mTitle}
-                  onChange={(e) => setMTitle(e.target.value)}
-                  className="gm-input mt-1"
-                  placeholder="Ex: Incursão de Servidor Arasaka"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest font-semibold">
-                  Descrição dos Objetivos
-                </label>
-                <textarea
-                  required
-                  value={mDesc}
-                  onChange={(e) => setMDesc(e.target.value)}
-                  className="gm-input mt-1 h-20 text-slate-300 pr-2 resize-none"
-                  placeholder="Infiltre o datacenter e recupere o decodificador..."
-                ></textarea>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-4">
+            <div className="neon-card p-6 bg-zinc-900/50">
+              <h2 className="text-base font-bold text-pink-500 uppercase border-b border-pink-500/20 pb-2 mb-4">
+                Nova Diretriz / Missão Contract
+              </h2>
+              <form onSubmit={handleCreateMission} className="space-y-4">
                 <div>
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                    SP Drop
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">
+                    Título do Contrato
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    value={mTitle}
+                    onChange={(e) => setMTitle(e.target.value)}
+                    className="gm-input mt-1"
+                    placeholder="Ex: Incursão de Servidor Arasaka"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest font-semibold">
+                    Descrição dos Objetivos
+                  </label>
+                  <textarea
+                    required
+                    value={mDesc}
+                    onChange={(e) => setMDesc(e.target.value)}
+                    className="gm-input mt-1 h-16 text-slate-300 pr-2 resize-none"
+                    placeholder="Infiltre o datacenter e recupere o decodificador..."
+                  ></textarea>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                      SP Drop
+                    </label>
+                    <input
+                      required
+                      type="number"
+                      value={mSP}
+                      onChange={(e) => setMSp(e.target.value)}
+                      className="gm-input mt-1 text-pink-400 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                      XP Drop
+                    </label>
+                    <input
+                      required
+                      type="number"
+                      value={mXP}
+                      onChange={(e) => setMXp(e.target.value)}
+                      className="gm-input mt-1 text-cyan-400 font-bold"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-purple-400 uppercase tracking-widest font-semibold">
+                    Qtd. Contratos Disponíveis
                   </label>
                   <input
                     required
                     type="number"
-                    value={mSP}
-                    onChange={(e) => setMSp(e.target.value)}
-                    className="gm-input mt-1 text-pink-400 font-bold"
+                    min="1"
+                    value={mQty}
+                    onChange={(e) => setMQty(e.target.value)}
+                    className="gm-input mt-1 border-purple-500/30 text-purple-400 font-bold text-center"
                   />
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                    XP Drop
+                    Visibilidade Privilégio
                   </label>
-                  <input
-                    required
-                    type="number"
-                    value={mXP}
-                    onChange={(e) => setMXp(e.target.value)}
-                    className="gm-input mt-1 text-cyan-400 font-bold"
-                  />
+                  <select
+                    value={mType}
+                    onChange={(e) => setMType(e.target.value)}
+                    className="gm-input mt-1 text-slate-300"
+                  >
+                    <option value="geral">Público Geral (Pra Todos)</option>
+                    <option value="esquadrao">Restrito a Sindicato (Squad)</option>
+                    <option value="especifica">Foco Único (Sujeito específico)</option>
+                  </select>
                 </div>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-purple-400 uppercase tracking-widest font-semibold">
-                  Qtd. Contratos Disponíveis
-                </label>
-                <input
-                  required
-                  type="number"
-                  min="1"
-                  value={mQty}
-                  onChange={(e) => setMQty(e.target.value)}
-                  className="gm-input mt-1 border-purple-500/30 text-purple-400 font-bold text-center"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                  Visibilidade Privilégio
-                </label>
-                <select
-                  value={mType}
-                  onChange={(e) => setMType(e.target.value)}
-                  className="gm-input mt-1 text-slate-300"
+                {mType === "especifica" && (
+                  <div>
+                    <label className="text-xs font-bold text-purple-400 uppercase tracking-widest">
+                      Selecionar Alvo
+                    </label>
+                    <select
+                      value={mTargetId}
+                      onChange={(e) => setMTargetId(e.target.value)}
+                      className="gm-input mt-1 border-purple-500 text-purple-400 font-semibold text-sm"
+                    >
+                      {players.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {mType === "esquadrao" && (
+                  <div>
+                    <label className="text-xs font-bold text-blue-400 uppercase tracking-widest">
+                      Selecionar Esquadrão
+                    </label>
+                    <select
+                      value={mTargetSquadId}
+                      onChange={(e) => setMTargetSquadId(e.target.value)}
+                      className="gm-input mt-1 border-blue-500 text-blue-400 font-semibold text-sm"
+                    >
+                      {squads.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  className="w-full bg-pink-600 hover:bg-pink-500 text-white font-bold py-3 mt-2 rounded uppercase tracking-widest text-sm transition-all duration-300 shadow-[0_0_15px_rgba(236,72,153,0.3)] cursor-pointer"
                 >
-                  <option value="geral">Público Geral (Pra Todos)</option>
-                  <option value="esquadrao">Restrito a Sindicato (Squad)</option>
-                  <option value="especifica">Foco Único (Sujeito específico)</option>
-                </select>
+                  Publicar Diretriz
+                </button>
+              </form>
+            </div>
+
+            {/* Ponto 2: Banco de dados fixo e reutilizável de missões táticas prontas */}
+            <div className="neon-card p-4 border-dashed border-zinc-800 bg-zinc-950/60">
+              <h3 className="text-xs font-bold uppercase tracking-wider mb-3 text-slate-400">
+                Banco de Diretrizes Prontas
+              </h3>
+              <div className="space-y-2">
+                {missionTemplates.map((t, idx) => (
+                  <div key={idx} className="bg-zinc-900 p-2.5 rounded border border-zinc-850 flex justify-between items-center text-xs">
+                    <div className="truncate flex flex-col max-w-[70%]">
+                      <span className="font-bold text-slate-200 truncate">{t.title}</span>
+                      <span className="text-[10px] text-slate-500 truncate mt-0.5">{t.desc}</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setMissions(p => [{
+                          id: generateUniqueId(), title: t.title, desc: t.desc, sp: t.sp, xp: t.xp, quantity: 1, diff: "Médio", status: "available", targetPlayerId: null, targetSquadId: null, claimedBy: []
+                        }, ...p]);
+                        showToast("Contrato injetado do banco.", "success");
+                      }}
+                      className="bg-zinc-950 text-pink-400 border border-zinc-800 px-3 py-1 rounded font-bold uppercase tracking-widest text-[9px] hover:bg-pink-900/10 cursor-pointer"
+                    >
+                      Injetar
+                    </button>
+                  </div>
+                ))}
               </div>
-              {mType === "especifica" && (
-                <div>
-                  <label className="text-xs font-bold text-purple-400 uppercase tracking-widest">
-                    Selecionar Alvo
-                  </label>
-                  <select
-                    value={mTargetId}
-                    onChange={(e) => setMTargetId(e.target.value)}
-                    className="gm-input mt-1 border-purple-500 text-purple-400 font-semibold text-sm"
-                  >
-                    {players.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              {mType === "esquadrao" && (
-                <div>
-                  <label className="text-xs font-bold text-blue-400 uppercase tracking-widest">
-                    Selecionar Esquadrão
-                  </label>
-                  <select
-                    value={mTargetSquadId}
-                    onChange={(e) => setMTargetSquadId(e.target.value)}
-                    className="gm-input mt-1 border-blue-500 text-blue-400 font-semibold text-sm"
-                  >
-                    {squads.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <button
-                type="submit"
-                className="w-full bg-pink-600 hover:bg-pink-500 text-white font-bold py-3 mt-2 rounded uppercase tracking-widest text-sm transition-all duration-300 shadow-[0_0_15px_rgba(236,72,153,0.3)] cursor-pointer"
-              >
-                Publicar Diretriz
-              </button>
-            </form>
+            </div>
           </div>
 
           <div className="lg:col-span-2 space-y-4">
@@ -2110,7 +2149,7 @@ export default function GMDashboard({
 
                     <h3 className="font-bold text-xl text-white pr-20">{m.title}</h3>
                     <p className="text-xs text-slate-400 mt-2 mb-4 leading-relaxed">{m.desc}</p>
-                    <div className="flex justify-between items-end flex-wrap gap-3 border-t border-zinc-800 pt-3">
+                    <div className="flex justify-between items-center flex-wrap gap-3 border-t border-zinc-800 pt-3">
                       <div className="flex gap-4">
                         <span className="bg-pink-500/10 border border-pink-500/20 text-pink-400 px-3 py-1 rounded text-xs font-bold tracking-widest">
                           +{m.sp} SP
@@ -2146,6 +2185,17 @@ export default function GMDashboard({
                             </optgroup>
                           </select>
                         )}
+
+                        {/* Ponto 2: Opção de Reabastecer as missões ativas em tempo real no servidor */}
+                        <button
+                          onClick={() => {
+                            setMissions(p => p.map(it => it.id === m.id ? { ...it, quantity: it.quantity + 1 } : it));
+                            showToast("Cota de Contrato expandida (+1).", "success");
+                          }}
+                          className="bg-zinc-800 text-purple-400 text-xs px-3 py-1.5 rounded font-bold border border-zinc-750 hover:bg-zinc-700 transition cursor-pointer"
+                        >
+                          Reabastecer (+1)
+                        </button>
 
                         <button
                           onClick={() => handleCompleteMission(m.id, missionWinnerId)}

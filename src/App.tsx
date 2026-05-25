@@ -90,7 +90,7 @@ const defaultShopItems: ShopItem[] = [
 ];
 
 export default function App() {
-  const [sessionType, setSessionType] = useState<"none" | "player" | "gm" | "none">("none");
+  const [sessionType, setSessionType] = useState<"none" | "player" | "gm">("none");
   const [view, setView] = useState<"player" | "gm">("player");
   const [loggedPlayerId, setLoggedPlayerId] = useState<number | null>(null);
 
@@ -102,10 +102,14 @@ export default function App() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [geminiKey, setGeminiKey] = useState("");
 
+  // Credenciais dinâmicas do GM vindas do Mainframe remoto via planilha
+  const [gmUser, setGmUser] = useState("admin");
+  const [gmPassword, setGmPassword] = useState("admin");
+
   const [showSettings, setShowSettings] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  // Impedir disparos sobrepostos e travar gravação automática antes do download
+  // Trava de controle de inicialização e hidratação segura de estados
   const initialFetchDone = useRef(false);
   const isDataLoaded = useRef(false);
 
@@ -140,8 +144,12 @@ export default function App() {
         setShopItems(cloudDatabase.shopItems || defaultShopItems);
         setLogs(cloudDatabase.logs || []);
         setGeminiKey(cloudDatabase.geminiKey || "");
+        
+        // Hidratação das credenciais administrativas dinâmicas
+        if (cloudDatabase.gmUser) setGmUser(cloudDatabase.gmUser);
+        if (cloudDatabase.gmPassword) setGmPassword(cloudDatabase.gmPassword);
 
-        // Download concluído com sucesso, liberar observadores
+        // Download concluído com sucesso, liberar observadores automáticos de gravação
         isDataLoaded.current = true;
 
         if (!silent) showToast("Mainframe Sincronizado!", "success");
@@ -187,7 +195,7 @@ export default function App() {
     }
   }, []);
 
-  // 2. Continuous individual observers - só salvam após o carregamento inicial terminar
+  // 2. Observadores individuais protegidos por estado de carregamento inicial concluído
   useEffect(() => {
     if (isDataLoaded.current && players.length > 0) pushToMainframe("players", players);
   }, [players]);
@@ -365,7 +373,7 @@ export default function App() {
             <button
               onClick={() => {
                 setShowSettings(false);
-                showToast("Key updated.", "success");
+                showToast("Key atualizada.", "success");
               }}
               className="px-5 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded font-bold text-xs uppercase tracking-widest transition cursor-pointer"
             >
@@ -381,6 +389,8 @@ export default function App() {
           <MainGate
             players={players}
             showToast={showToast}
+            gmUser={gmUser}
+            gmPassword={gmPassword}
             onGMLogin={() => {
               setSessionType("gm");
               setView("gm");
@@ -392,9 +402,9 @@ export default function App() {
             }}
           />
         ) : view === "player" ? (
-          activePlayer ? (
+          players.find((p) => p.id === loggedPlayerId) ? (
             <PlayerDashboard
-              player={activePlayer}
+              player={players.find((p) => p.id === loggedPlayerId)!}
               players={players}
               setPlayers={setPlayers}
               missions={missions}
