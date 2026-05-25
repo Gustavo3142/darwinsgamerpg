@@ -94,12 +94,16 @@ export default function GMDashboard({
   const [newConquistaDesc, setNewConquistaDesc] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Novos Estados das Funcionalidades Customizadas
+  // Estados das Funcionalidades Customizadas
   const [missionFilter, setMissionFilter] = useState("todas");
   const [newConquistaRarity, setNewConquistaRarity] = useState("comum");
   const [removeQtyState, setRemoveQtyState] = useState<{ [key: number]: string }>({});
   const [newItemRarity, setNewItemRarity] = useState("comum");
   const [shopRarity, setShopRarity] = useState("comum");
+
+  // Estados do Filtro Cascata de Logs (Item 1)
+  const [logFilterType, setLogFilterType] = useState("todos");
+  const [logTargetId, setLogTargetId] = useState("");
 
   // Analytics State
   const [reportStartDate, setReportStartDate] = useState("");
@@ -633,40 +637,31 @@ export default function GMDashboard({
     showToast("Estoque do lote expandido (+5 unidades).", "success");
   };
 
+  // Canal de Impressão Nativo (Item 3 - Ignora restrições de Iframe/Sandbox)
   const exportPDF = () => {
-    const element = document.getElementById("report-container");
-    if (!element) return;
-
-    const script = document.createElement("script");
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
-    script.onload = () => {
-      const html2pdf = (window as any).html2pdf;
-      if (html2pdf) {
-        const opt = {
-          margin: 0.5,
-          filename: `Relatorio_GM_${new Date().toISOString().split("T")[0]}.pdf`,
-          image: { type: "jpeg", quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true, backgroundColor: "#06060c" },
-          jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
-        };
-        html2pdf().set(opt).from(element).save();
-      }
-    };
-    document.body.appendChild(script);
-    showToast("PDF compilado de forma assíncrona.", "success");
+    showToast("Iniciando canal de renderização nativo do Mainframe...", "success");
+    setTimeout(() => {
+      window.print();
+    }, 500);
   };
 
+  // Lógica Avançada de Filtragem de logs (Item 1)
   const filteredLogs = logs.filter((log) => {
     if (reportStartDate && new Date(log.date) < new Date(reportStartDate + "T00:00:00")) return false;
     if (reportEndDate && new Date(log.date) > new Date(reportEndDate + "T23:59:59")) return false;
-    if (reportPlayerId && log.playerId !== Number(reportPlayerId)) return false;
+    
+    if (logFilterType === "individual" && logTargetId && log.playerId !== Number(logTargetId)) return false;
+    if (logFilterType === "esquadrao" && logTargetId) {
+      const squad = squads.find(s => s.id === Number(logTargetId));
+      if (squad && !squad.members.includes(log.playerId)) return false;
+    }
     return true;
   });
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-8">
       {/* Navigation Headers */}
-      <header className="border-b border-pink-500/30 pb-4 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 overflow-x-auto">
+      <header className="border-b border-pink-500/30 pb-4 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 overflow-x-auto print:hidden">
         <div className="shrink-0">
           <h1 className="text-3xl font-bold neon-text-primary uppercase flex items-center gap-3">
             <Shield className="w-8 h-8" /> Terminal de Mestre GM
@@ -2200,6 +2195,17 @@ export default function GMDashboard({
       {/* VIEW: RELATÓRIOS / ANALYTICS INSIGHTS */}
       {gmTab === "relatorio" && (
         <div className="space-y-6">
+          {/* Injeção Dinâmica das Configurações de Impressão de Alta Resolução */}
+          <style dangerouslySetInnerHTML={{__html: `
+            @media print {
+              body { background: #06060c !important; color: #fff !important; font-family: 'Rajdhani', sans-serif !important; }
+              nav, header, .print\\:hidden, button, select, input, .gm-input { display: none !important; }
+              #report-container { position: absolute; left: 0; top: 0; width: 100% !important; border: none !important; background: #06060c !important; padding: 0 !important; box-shadow: none !important; }
+              .bg-zinc-900, .bg-zinc-950 { background: #111116 !important; border-color: #222 !important; }
+              text { fill: #a1a1aa !important; }
+            }
+          `}} />
+
           <div className="bg-zinc-900 border border-zinc-800 p-4 rounded flex flex-col md:flex-row justify-between items-stretch md:items-end gap-4 shadow-lg print:hidden">
             <div className="flex flex-col gap-4 flex-1">
               <div className="flex gap-4 items-end flex-wrap w-full md:w-auto">
@@ -2227,44 +2233,68 @@ export default function GMDashboard({
                 </div>
               </div>
 
-              <div className="border-t border-zinc-800/50 pt-3 flex flex-col gap-2">
-                <span className="text-[10px] uppercase text-cyan-400 font-bold tracking-wider">
-                  Selecionar Operador para Filtro de Logs:
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setReportPlayerId("")}
-                    className={`px-3 py-1.5 text-[10px] font-bold uppercase rounded border transition cursor-pointer ${
-                      reportPlayerId === ""
-                        ? "bg-cyan-600 text-white border-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.4)]"
-                        : "bg-zinc-950 text-slate-400 border-zinc-800 hover:text-slate-200"
-                     }`}
+              {/* Menu Suspenso Multi-Filtro de Logs Contextual (Item 1) */}
+              <div className="border-t border-zinc-800/50 pt-3 flex flex-col md:flex-row gap-4 items-end">
+                <div className="flex-1 min-w-[180px]">
+                  <span className="text-[10px] uppercase text-cyan-400 font-bold tracking-wider block mb-1">
+                    Filtrar Logs por Categoria:
+                  </span>
+                  <select
+                    value={logFilterType}
+                    onChange={(e) => {
+                      setLogFilterType(e.target.value);
+                      setLogTargetId("");
+                    }}
+                    className="gm-input text-xs font-bold text-cyan-400 border-cyan-500/30"
                   >
-                    Todos
-                  </button>
-                  {players.map((p) => (
-                    <button
-                      type="button"
-                      key={p.id}
-                      onClick={() => setReportPlayerId(String(p.id))}
-                      className={`px-3 py-1.5 text-[10px] font-bold uppercase rounded border transition cursor-pointer ${
-                        reportPlayerId === String(p.id)
-                          ? "bg-pink-600/95 text-white border-pink-500 shadow-[0_0_8px_rgba(236,72,153,0.4)]"
-                          : "bg-zinc-950 text-slate-400 border-zinc-800 hover:text-slate-200"
-                      }`}
-                    >
-                      {p.name}
-                    </button>
-                  ))}
+                    <option value="todos">Todos os Operadores / Grupos</option>
+                    <option value="individual">Individual (Sujeito Único)</option>
+                    <option value="esquadrao">Por Esquadrão (Sindicato)</option>
+                  </select>
                 </div>
+
+                {logFilterType === "individual" && (
+                  <div className="flex-1 min-w-[180px] animate-fade-in">
+                    <span className="text-[10px] uppercase text-pink-400 font-bold tracking-wider block mb-1">
+                      Selecionar Sujeito:
+                    </span>
+                    <select
+                      value={logTargetId}
+                      onChange={(e) => setLogTargetId(e.target.value)}
+                      className="gm-input text-xs font-bold text-pink-400 border-pink-500/30"
+                    >
+                      <option value="">-- Escolher Operador --</option>
+                      {players.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {logFilterType === "esquadrao" && (
+                  <div className="flex-1 min-w-[180px] animate-fade-in">
+                    <span className="text-[10px] uppercase text-blue-400 font-bold tracking-wider block mb-1">
+                      Selecionar Esquadrão:
+                    </span>
+                    <select
+                      value={logTargetId}
+                      onChange={(e) => setLogTargetId(e.target.value)}
+                      className="gm-input text-xs font-bold text-blue-400 border-blue-500/30"
+                    >
+                      <option value="">-- Escolher Esquadrão --</option>
+                      {squads.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             </div>
             <button
               onClick={exportPDF}
               className="bg-cyan-600 hover:bg-cyan-500 text-white px-5 py-2.5 rounded text-xs font-bold uppercase w-full md:w-auto justify-center transition flex items-center gap-1.5 shadow-[0_0_10px_rgba(6,182,212,0.3)] cursor-pointer h-10 shrink-0 self-start md:self-end"
             >
-              <FileText className="w-4 h-4" /> Compilar PDF Analytics
+              <FileText className="w-4 h-4" /> COMPILAR PDF ANALYTICS
             </button>
           </div>
 
@@ -2526,36 +2556,53 @@ export default function GMDashboard({
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest shrink-0">
                       Corrida Dinâmica de XP Comparada
                     </h3>
-                    <div className="flex gap-1 overflow-x-auto w-full py-0.5 justify-end">
-                      {players.map((p) => {
-                        const isComp = selectedCompareIds.includes(p.id);
+                    
+                    {/* Menu Suspenso de Seleção Avançado de Mapeamento (Item 2) */}
+                    <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-end print:hidden">
+                      {selectedCompareIds.map((id, idx) => {
+                        const p = players.find(pl => pl.id === id);
+                        const cols = ["bg-pink-600/10 text-pink-400 border-pink-500/30", "bg-cyan-600/10 text-cyan-400 border-cyan-500/30", "bg-purple-600/10 text-purple-400 border-purple-500/30"];
                         return (
-                          <button
-                            key={p.id}
-                            type="button"
-                            onClick={() => {
-                              if (isComp) {
-                                setSelectedCompareIds((prev) => prev.filter((id) => id !== p.id));
-                              } else if (selectedCompareIds.length < 3) {
-                                setSelectedCompareIds((prev) => [...prev, p.id]);
-                              }
-                            }}
-                            className={`px-2 py-1 text-[9px] font-bold uppercase rounded whitespace-nowrap transition cursor-pointer ${
-                              isComp
-                                ? "bg-cyan-600 text-white"
-                                : "bg-zinc-950 text-slate-500 border border-zinc-800"
-                            }`}
+                          <span
+                            key={id}
+                            onClick={() => setSelectedCompareIds(prev => prev.filter(mid => mid !== id))}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold border cursor-pointer hover:bg-red-950/40 hover:text-red-400 hover:border-red-500/30 transition-all ${cols[idx]}`}
+                            title="Clique para remover"
                           >
-                            {p.name}
-                          </button>
+                            {p ? p.name : id} &times;
+                          </span>
                         );
                       })}
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          if (!val) return;
+                          if (selectedCompareIds.includes(val)) {
+                            setSelectedCompareIds(prev => prev.filter(id => id !== val));
+                          } else if (selectedCompareIds.length < 3) {
+                            setSelectedCompareIds(prev => [...prev, val]);
+                          }
+                        }}
+                        className="bg-zinc-950 border border-zinc-800 text-[10px] text-cyan-400 px-2 py-1 rounded outline-none max-w-[150px] font-bold cursor-pointer"
+                      >
+                        <option value="">+ Selecionar (Max 3)</option>
+                        {players.map((p) => {
+                          const isComp = selectedCompareIds.includes(p.id);
+                          return (
+                            <option key={p.id} value={p.id} disabled={!isComp && selectedCompareIds.length >= 3}>
+                              {isComp ? "✓ " : ""} {p.name}
+                            </option>
+                          );
+                        })}
+                      </select>
                     </div>
                   </div>
+                  
                   <div className="h-64 flex-1">
                     {selectedCompareIds.length === 0 ? (
                       <div className="h-full flex items-center justify-center text-xs text-slate-600 italic uppercase">
-                        Selecione até 3 sujeitos nas tags acima.
+                        Selecione até 3 sujeitos no menu suspenso acima.
                       </div>
                     ) : (
                       <ResponsiveContainer width="100%" height="100%">
