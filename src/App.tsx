@@ -102,16 +102,12 @@ export default function App() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [geminiKey, setGeminiKey] = useState("");
 
-  // Credenciais dinâmicas do GM vindas do Mainframe remoto via planilha
-  const [gmUser, setGmUser] = useState("admin");
-  const [gmPassword, setGmPassword] = useState("admin");
-
   const [showSettings, setShowSettings] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  // Trava de controle de inicialização e hidratação segura de estados
+  // Trava física para impedir disparos automatizados redundantes ou precipitados
   const initialFetchDone = useRef(false);
-  const isDataLoaded = useRef(false);
+  const isDataLoaded = useRef(false); 
 
   // Sync state reference to avoid endless loop updates
   const skipNextPush = useRef<{ [key: string]: boolean }>({});
@@ -144,12 +140,8 @@ export default function App() {
         setShopItems(cloudDatabase.shopItems || defaultShopItems);
         setLogs(cloudDatabase.logs || []);
         setGeminiKey(cloudDatabase.geminiKey || "");
-        
-        // Hidratação das credenciais administrativas dinâmicas
-        if (cloudDatabase.gmUser) setGmUser(cloudDatabase.gmUser);
-        if (cloudDatabase.gmPassword) setGmPassword(cloudDatabase.gmPassword);
 
-        // Download concluído com sucesso, liberar observadores automáticos de gravação
+        // Ativa a liberação apenas após popular os estados com o histórico real da nuvem
         isDataLoaded.current = true;
 
         if (!silent) showToast("Mainframe Sincronizado!", "success");
@@ -164,7 +156,7 @@ export default function App() {
         setSquads(defaultSquads);
         setShopItems(defaultShopItems);
       }
-      // Liberar observadores mesmo em modo local offline
+      // Libera os observadores para salvar localmente mesmo offline
       isDataLoaded.current = true;
     } finally {
       if (!silent) setIsSyncing(false);
@@ -195,7 +187,7 @@ export default function App() {
     }
   }, []);
 
-  // 2. Observadores individuais protegidos por estado de carregamento inicial concluído
+  // 2. Observadores persistentes e blindados pela trava isDataLoaded
   useEffect(() => {
     if (isDataLoaded.current && players.length > 0) pushToMainframe("players", players);
   }, [players]);
@@ -389,8 +381,6 @@ export default function App() {
           <MainGate
             players={players}
             showToast={showToast}
-            gmUser={gmUser}
-            gmPassword={gmPassword}
             onGMLogin={() => {
               setSessionType("gm");
               setView("gm");
@@ -402,9 +392,9 @@ export default function App() {
             }}
           />
         ) : view === "player" ? (
-          players.find((p) => p.id === loggedPlayerId) ? (
+          activePlayer ? (
             <PlayerDashboard
-              player={players.find((p) => p.id === loggedPlayerId)!}
+              player={activePlayer}
               players={players}
               setPlayers={setPlayers}
               missions={missions}
