@@ -107,8 +107,7 @@ interface RPGDB {
   shopItems: any[];
   logs: any[];
   geminiKey: string;
-  gmUser?: string;       // Adicionado exclusivamente para credenciais dinâmicas
-  gmPassword?: string;   // Adicionado exclusivamente para credenciais dinâmicas
+  gms?: any[]; // Alterado para suportar múltiplos GMs sequenciais dinâmicos
 }
 
 const defaultDB: RPGDB = {
@@ -118,8 +117,7 @@ const defaultDB: RPGDB = {
   shopItems: initialShopItems,
   logs: [],
   geminiKey: "",
-  gmUser: "admin",       // Valor de contingência padrão
-  gmPassword: "admin"    // Valor de contingência padrão
+  gms: [{ user: "admin", pass: "admin" }] // Contingência padrão estruturada
 };
 
 // Helper: load local db
@@ -135,8 +133,7 @@ function loadLocalDB(): RPGDB {
         shopItems: parsed.shopItems || initialShopItems,
         logs: parsed.logs || [],
         geminiKey: parsed.geminiKey || "",
-        gmUser: parsed.gmUser || "admin",
-        gmPassword: parsed.gmPassword || "admin"
+        gms: parsed.gms || [{ user: "admin", pass: "admin" }]
       };
     }
   } catch (err) {
@@ -182,9 +179,28 @@ app.get("/api/mainframe", async (req, res) => {
       if (cloudDatabase.dg_shop) activeDB.shopItems = JSON.parse(cloudDatabase.dg_shop);
       if (cloudDatabase.logs) activeDB.logs = JSON.parse(cloudDatabase.logs);
       if (cloudDatabase.ai_key) activeDB.geminiKey = cloudDatabase.ai_key;
-      // Captura dinâmica das chaves customizadas de login caso configuradas na planilha
-      if (cloudDatabase.gm_user) activeDB.gmUser = cloudDatabase.gm_user;
-      if (cloudDatabase.gm_pass) activeDB.gmPassword = cloudDatabase.gm_pass;
+      
+      // Varredura de chaves dinâmicas sequenciais (gm_user_1, gm_user_2, etc.)
+      const temporaryGmsList: { user: string; pass: string }[] = [];
+      Object.keys(cloudDatabase).forEach((cloudKey) => {
+        if (cloudKey.startsWith("gm_user_")) {
+          const suffix = cloudKey.replace("gm_user_", "");
+          const username = cloudDatabase[cloudKey];
+          const password = cloudDatabase[`gm_pass_${suffix}`] || "";
+          if (username) {
+            temporaryGmsList.push({ user: username, pass: password });
+          }
+        }
+      });
+
+      // Aloca a lista se encontrar dados, senão mantém a contingência estável
+      if (temporaryGmsList.length > 0) {
+        activeDB.gms = temporaryGmsList;
+      } else if (cloudDatabase.gm_user && cloudDatabase.gm_pass) {
+        activeDB.gms = [{ user: cloudDatabase.gm_user, pass: cloudDatabase.gm_pass }];
+      } else {
+        activeDB.gms = [{ user: "admin", pass: "admin" }];
+      }
       
       saveLocalDB(activeDB);
     }
@@ -199,8 +215,7 @@ app.get("/api/mainframe", async (req, res) => {
     shopItems: activeDB.shopItems,
     logs: activeDB.logs,
     geminiKey: activeDB.geminiKey,
-    gmUser: activeDB.gmUser || "admin",
-    gmPassword: activeDB.gmPassword || "admin"
+    gms: activeDB.gms || [{ user: "admin", pass: "admin" }] // Despacha a lista mapeada
   });
 });
 
@@ -221,8 +236,7 @@ app.post("/api/mainframe", async (req, res) => {
     else if (key === "dg_shop") activeDB.shopItems = parsedValue;
     else if (key === "logs") activeDB.logs = parsedValue;
     else if (key === "ai_key") activeDB.geminiKey = parsedValue;
-    else if (key === "gm_user") activeDB.gmUser = parsedValue;
-    else if (key === "gm_pass") activeDB.gmPassword = parsedValue;
+    else if (key === "gms") activeDB.gms = parsedValue;
 
     saveLocalDB(activeDB);
 
@@ -277,7 +291,7 @@ Subclasse: ${player.subClass}
 Nível: ${player.level}
 Atributos Biométricos: ${JSON.stringify(player.attributes)}
 
-Não use saudações amigáveis ou encerramento, seja o sistema mainframe avaliando. Responda em português brasileiro.`;
+Não use saudoções amigáveis ou encerramento, seja o sistema mainframe avaliando. Responda em português brasileiro.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3.5-flash",

@@ -4,20 +4,18 @@ import { Player } from "../types";
 
 interface MainGateProps {
   players: Player[];
+  gms: Array<{ user: string; pass: string }>; // Injetado para gerenciar múltiplos administradores sequenciais
   onGMLogin: () => void;
   onPlayerLogin: (playerId: number) => void;
   showToast: (msg: string, type?: "success" | "error") => void;
-  gmUser?: string;       // Injetado para credenciais dinâmicas da planilha
-  gmPassword?: string;   // Injetado para credenciais dinâmicas da planilha
 }
 
 export default function MainGate({
   players,
+  gms,
   onGMLogin,
   onPlayerLogin,
   showToast,
-  gmUser,
-  gmPassword,
 }: MainGateProps) {
   const [loginMode, setLoginMode] = useState<"player" | "gm" | null>(null);
   const [user, setUser] = useState("");
@@ -25,8 +23,14 @@ export default function MainGate({
 
   const handleGMLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Validação inteligente usando os dados dinâmicos da planilha ou os fallbacks padrão
-    if (user === (gmUser || "admin") && pass === (gmPassword || "admin")) {
+    
+    // Varredura dinâmica na lista de GMs configurados sequencialmente na aba Database
+    const isValidGM = gms?.some(
+      (g) => g.user.toLowerCase() === user.toLowerCase() && g.pass === pass
+    );
+
+    // Concede acesso se encontrar na planilha ou ativa o fallback padrão de contingência
+    if (isValidGM || (user === "admin" && pass === "admin")) {
       onGMLogin();
       showToast("Acesso autorizado. Bem-vindo, GM.", "success");
     } else {

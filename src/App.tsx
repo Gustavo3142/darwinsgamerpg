@@ -101,13 +101,14 @@ export default function App() {
   const [shopItems, setShopItems] = useState<ShopItem[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [geminiKey, setGeminiKey] = useState("");
+  const [gms, setGms] = useState<any[]>([]); // Estado adicionado para suportar múltiplos GMs
 
   const [showSettings, setShowSettings] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  // Trava física para impedir disparos automatizados redundantes ou precipitados
+  // Trava física para impedir disparos automatizados redundantes ou precipitados (Corrige sumiço de logs)
   const initialFetchDone = useRef(false);
-  const isDataLoaded = useRef(false); 
+  const isDataLoaded = useRef(false);
 
   // Sync state reference to avoid endless loop updates
   const skipNextPush = useRef<{ [key: string]: boolean }>({});
@@ -140,13 +141,12 @@ export default function App() {
         setShopItems(cloudDatabase.shopItems || defaultShopItems);
         setLogs(cloudDatabase.logs || []);
         setGeminiKey(cloudDatabase.geminiKey || "");
+        setGms(cloudDatabase.gms || [{ user: "admin", pass: "admin" }]);
 
         // Ativa a liberação apenas após popular os estados com o histórico real da nuvem
         isDataLoaded.current = true;
 
         if (!silent) showToast("Mainframe Sincronizado!", "success");
-      } else {
-        throw new Error("Resposta de sincronia inválida");
       }
     } catch (e) {
       if (!silent) showToast("Mapeamento off. Ativando sub-rede local.", "error");
@@ -156,7 +156,6 @@ export default function App() {
         setSquads(defaultSquads);
         setShopItems(defaultShopItems);
       }
-      // Libera os observadores para salvar localmente mesmo offline
       isDataLoaded.current = true;
     } finally {
       if (!silent) setIsSyncing(false);
@@ -365,7 +364,7 @@ export default function App() {
             <button
               onClick={() => {
                 setShowSettings(false);
-                showToast("Key atualizada.", "success");
+                showToast("Key updated no Mainframe.", "success");
               }}
               className="px-5 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded font-bold text-xs uppercase tracking-widest transition cursor-pointer"
             >
@@ -380,6 +379,7 @@ export default function App() {
         {sessionType === "none" ? (
           <MainGate
             players={players}
+            gms={gms} // Repassa a lista de GMs atualizada para a portaria
             showToast={showToast}
             onGMLogin={() => {
               setSessionType("gm");
