@@ -66,11 +66,21 @@ export interface LogEntry {
   sp: number;
 }
 
+export interface Notification {
+  id: number;
+  date: string;
+  message: string;
+  type: "info" | "alert" | "success";
+  targetPlayerId: number | null;
+  readBy: number[];
+}
+
 export interface SystemState {
   players: Player[];
   missions: Mission[];
   squads: Squad[];
   shopItems: ShopItem[];
   logs: LogEntry[];
+  notifications: Notification[];
   geminiKey: string;
 }

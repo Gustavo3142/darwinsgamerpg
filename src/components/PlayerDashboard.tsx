@@ -15,9 +15,12 @@ import {
   ShoppingCart,
   Box,
   TrendingUp,
-  Cpu
+  Cpu,
+  Bell,
+  MessageSquare,
+  AlertTriangle
 } from "lucide-react";
-import { Player, Mission, ShopItem } from "../types";
+import { Player, Mission, ShopItem, Notification } from "../types";
 import { generateUniqueId } from "../utils/id";
 
 const attributeIconsMap: { [key: string]: React.ComponentType<any> } = {
@@ -44,6 +47,8 @@ interface PlayerDashboardProps {
   squads: Array<{ id: number; name: string; members: number[] }>;
   shopItems: ShopItem[];
   setShopItems: React.Dispatch<React.SetStateAction<ShopItem[]>>;
+  notifications: Notification[];
+  setNotifications: React.Dispatch<React.SetStateAction<Notification[]>>;
   addLog: (playerId: number, action: string, desc: string, xp?: number, sp?: number) => void;
   geminiKey: string;
   showToast: (msg: string, type?: "success" | "error") => void;
@@ -58,6 +63,8 @@ export default function PlayerDashboard({
   squads,
   shopItems,
   setShopItems,
+  notifications,
+  setNotifications,
   addLog,
   geminiKey,
   showToast,
@@ -67,6 +74,7 @@ export default function PlayerDashboard({
   const [analysis, setAnalysis] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [inspectedPlayer, setInspectedPlayer] = useState<Player | null>(null);
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
 
   if (!player) return null;
 
@@ -78,6 +86,29 @@ export default function PlayerDashboard({
       m.targetPlayerId === player.id ||
       (m.targetSquadId !== null && mySquads.includes(m.targetSquadId))
   );
+
+  // Derivações de Notificações
+  const myNotifications = notifications
+    .filter(n => n.targetPlayerId === null || n.targetPlayerId === player.id)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  
+  const unreadCount = myNotifications.filter(n => !n.readBy.includes(player.id)).length;
+
+  const handleOpenNotifications = () => {
+    setShowNotifPanel(true);
+    let updated = false;
+    const newNotifs = notifications.map(n => {
+      if ((n.targetPlayerId === null || n.targetPlayerId === player.id) && !n.readBy.includes(player.id)) {
+        updated = true;
+        return { ...n, readBy: [...n.readBy, player.id] };
+      }
+      return n;
+    });
+
+    if (updated) {
+      setNotifications(newNotifs);
+    }
+  };
 
   const analyzeProfile = async () => {
     setIsAnalyzing(true);
@@ -200,6 +231,62 @@ export default function PlayerDashboard({
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-8 relative">
+
+      {/* Notifications Modal */}
+      {showNotifPanel && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="neon-card hud-corner p-6 md:p-8 w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col border-cyan-500/50 shadow-[0_0_30px_rgba(6,182,212,0.2)]">
+            <div className="flex justify-between items-center mb-6 border-b border-cyan-500/20 pb-4 shrink-0">
+              <h2 className="text-xl font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
+                <Bell className="w-5 h-5 animate-pulse" /> Caixa de Entrada
+              </h2>
+              <button
+                onClick={() => setShowNotifPanel(false)}
+                className="text-slate-400 hover:text-white font-bold text-2xl transition-colors cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+              {myNotifications.length === 0 ? (
+                <div className="text-center p-8 text-slate-500 italic border border-dashed border-zinc-800 rounded">
+                  Caixa de entrada vazia.
+                </div>
+              ) : (
+                myNotifications.map(n => {
+                  let colors = "border-cyan-500/30 text-cyan-400";
+                  let Icon = MessageSquare;
+                  if (n.type === "alert") { colors = "border-red-500/30 text-red-400"; Icon = AlertTriangle; }
+                  if (n.type === "success") { colors = "border-green-500/30 text-green-400"; Icon = Sparkles; }
+
+                  return (
+                    <div key={n.id} className={`bg-zinc-900 border p-4 rounded flex gap-4 items-start ${colors}`}>
+                      <div className={`p-2 rounded-full border ${colors} bg-black/50 shrink-0`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="text-[10px] font-bold uppercase tracking-widest opacity-70">
+                            {new Date(n.date).toLocaleString('pt-BR')}
+                          </span>
+                          <span className={`text-[9px] uppercase px-2 py-0.5 rounded font-bold border ${colors} bg-black/50`}>
+                            {n.targetPlayerId === null ? "Global" : "Direto"}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-200 mt-1 leading-relaxed">
+                          {n.message}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Competitor Inspect Modal */}
       {inspectedPlayer && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
@@ -329,8 +416,21 @@ export default function PlayerDashboard({
       {/* Header Profile Summary */}
       <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-pink-500/20 pb-4">
         <div>
-          <h1 className="text-3xl md:text-4xl font-bold neon-text-primary uppercase tracking-tight">
+          <h1 className="text-3xl md:text-4xl font-bold neon-text-primary uppercase tracking-tight flex items-center gap-3">
             {player.name}
+            {/* Bell Button Header */}
+            <button
+              onClick={handleOpenNotifications}
+              className="relative p-2 bg-zinc-900 border border-zinc-800 hover:border-cyan-500 rounded-full transition-colors cursor-pointer group"
+              title="Avisos do Mainframe"
+            >
+              <Bell className={`w-5 h-5 transition-colors ${unreadCount > 0 ? 'text-pink-500' : 'text-cyan-600 group-hover:text-cyan-400'}`} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-pink-600 text-white text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center animate-pulse shadow-[0_0_10px_rgba(236,72,153,0.8)]">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
           </h1>
           <p className="text-base text-cyan-400 font-semibold tracking-widest mt-1 uppercase">
             {player.class} // <span className="text-slate-400">{player.subClass}</span>

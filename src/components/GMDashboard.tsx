@@ -20,7 +20,9 @@ import {
   TrendingUp,
   TrendingDown,
   Eye,
-  ShoppingCart
+  ShoppingCart,
+  Bell,
+  Radio
 } from "lucide-react";
 import {
   LineChart,
@@ -40,7 +42,7 @@ import {
   Pie,
   Cell
 } from "recharts";
-import { Player, Mission, Squad, ShopItem, LogEntry } from "../types";
+import { Player, Mission, Squad, ShopItem, LogEntry, Notification } from "../types";
 import { generateUniqueId } from "../utils/id";
 
 const attributeIconsMap: { [key: string]: React.ComponentType<any> } = {
@@ -68,6 +70,8 @@ interface GMDashboardProps {
   shopItems: ShopItem[];
   setShopItems: React.Dispatch<React.SetStateAction<ShopItem[]>>;
   logs: LogEntry[];
+  notifications: Notification[];
+  setNotifications: React.Dispatch<React.SetStateAction<Notification[]>>;
   addLog: (playerId: number, action: string, desc: string, xp?: number, sp?: number) => void;
   showToast: (msg: string, type?: "success" | "error") => void;
 }
@@ -82,6 +86,8 @@ export default function GMDashboard({
   shopItems,
   setShopItems,
   logs,
+  notifications,
+  setNotifications,
   addLog,
   showToast,
 }: GMDashboardProps) {
@@ -94,41 +100,34 @@ export default function GMDashboard({
   const [newConquistaDesc, setNewConquistaDesc] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Estados das Funcionalidades Customizadas anteriores
   const [missionFilter, setMissionFilter] = useState("todas");
   const [newConquistaRarity, setNewConquistaRarity] = useState("comum");
   const [removeQtyState, setRemoveQtyState] = useState<{ [key: number]: string }>({});
   const [newItemRarity, setNewItemRarity] = useState("comum");
   const [shopRarity, setShopRarity] = useState("comum");
 
-  // Estados do Filtro Cascata de Logs
   const [logFilterType, setLogFilterType] = useState("todos");
   const [logTargetId, setLogTargetId] = useState("");
 
-  // Ponto 1: Estrutura de seleção em cascata para penalidades / degradação
   const [degradeTargetType, setDegradeTargetType] = useState("player");
   const [degradePlayerId, setDegradePlayerId] = useState(players[0]?.id?.toString() || "");
   const [degradeSquadId, setDegradeSquadId] = useState(squads[0]?.id?.toString() || "");
 
-  // Ponto 2: Privilégios de Item estilo Missões
   const [shopVisibilityType, setShopVisibilityType] = useState("geral");
   const [shopTargetPlayerId, setShopTargetPlayerId] = useState(players[0]?.id?.toString() || "");
   const [shopTargetSquadId, setShopTargetSquadId] = useState(squads[0]?.id?.toString() || "");
 
-  // Ponto 2: Banco de dados fixo e reutilizável de missões prontas (Templates)
   const missionTemplates = [
     { title: "Incursão Datacenter Arasaka", desc: "Infiltre o subnível 4, drene os núcleos criptografados e sabote o gerador principal sem detecção.", sp: 200, xp: 450 },
     { title: "Extração de Informante Corp", desc: "Escolte o desertor da Militech em segurança pelas docas industriais até o ponto de extração.", sp: 150, xp: 300 },
     { title: "Limpeza de Malware Sindicato", desc: "Expurgue a infecção cibernética dos servidores locais infectados por uma facção hacker rival.", sp: 100, xp: 200 }
   ];
 
-  // Analytics State
   const [reportStartDate, setReportStartDate] = useState("");
   const [reportEndDate, setReportEndDate] = useState("");
   const [reportPlayerId, setReportPlayerId] = useState("");
   const [selectedCompareIds, setSelectedCompareIds] = useState<number[]>([]);
 
-  // Mission State
   const [mTitle, setMTitle] = useState("");
   const [mDesc, setMDesc] = useState("");
   const [mSP, setMSp] = useState("50");
@@ -139,7 +138,6 @@ export default function GMDashboard({
   const [mTargetSquadId, setMTargetSquadId] = useState(squads[0]?.id?.toString() || "");
   const [missionWinnerId, setMissionWinnerId] = useState("");
 
-  // Registration State
   const [regName, setRegName] = useState("");
   const [regEmail, setRegEmail] = useState("");
   const [regSigla, setRegSigla] = useState("");
@@ -148,7 +146,6 @@ export default function GMDashboard({
   const [regClass, setRegClass] = useState("");
   const [regSubClass, setRegSubClass] = useState("");
 
-  // Credit Injector State
   const [creditTargetType, setCreditTargetType] = useState("player");
   const [creditPlayerId, setCreditPlayerId] = useState(players[0]?.id?.toString() || "");
   const [creditSquadId, setCreditSquadId] = useState(squads[0]?.id?.toString() || "");
@@ -161,21 +158,23 @@ export default function GMDashboard({
   const [newItemDesc, setNewItemDesc] = useState("");
   const [newItemQuantity, setNewItemQuantity] = useState("1");
 
-  // Degrade State
   const [degradeXp, setDegradeXp] = useState("0");
   const [degradeSp, setDegradeSp] = useState("0");
   const [degradeAttrKey, setDegradeAttrKey] = useState("");
   const [degradeAttrValue, setDegradeAttrValue] = useState("0");
 
-  // Squad State
   const [newSquadName, setNewSquadName] = useState("");
   const [selectedSquadMembers, setSelectedSquadMembers] = useState<number[]>([]);
 
-  // Shop Manager State
   const [shopName, setShopName] = useState("");
   const [shopDesc, setShopDesc] = useState("");
   const [shopCost, setShopCost] = useState("100");
   const [shopStock, setShopStock] = useState("5");
+
+  // Notification State
+  const [notifMsg, setNotifMsg] = useState("");
+  const [notifType, setNotifType] = useState<"info" | "alert" | "success">("info");
+  const [notifTarget, setNotifTarget] = useState("");
 
   const selectedPlayer = players.find((p) => p.id === selectedPlayerId) || players[0];
   const selectedCreditPlayer = players.find((p) => p.id === Number(creditPlayerId)) || players[0];
@@ -474,7 +473,6 @@ export default function GMDashboard({
     setCreditAttrValue("0");
   };
 
-  // Ponto 1: Lógica de Penalidades Avançada com Suporte Dinâmico a Grupo / Esquadrão em Cascata
   const handleDegrade = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -644,7 +642,6 @@ export default function GMDashboard({
     showToast("Esquadrão dissolvido.", "success");
   };
 
-  // Ponto 2: Criação de itens de Mercado com suporte a privilégios e filtros avançados (Público/Squad/Jogador)
   const handleCreateShopItem = (e: React.FormEvent) => {
     e.preventDefault();
     const newItem: ShopItem = {
@@ -670,6 +667,29 @@ export default function GMDashboard({
       prev.map((item) => (item.id === id ? { ...item, stock: item.stock + 5 } : item))
     );
     showToast("Estoque do lote expandido (+5 unidades).", "success");
+  };
+
+  const handleSendNotification = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!notifMsg.trim()) return;
+
+    const newNotif: Notification = {
+      id: generateUniqueId(),
+      date: new Date().toISOString(),
+      message: notifMsg.trim(),
+      type: notifType,
+      targetPlayerId: notifTarget ? Number(notifTarget) : null,
+      readBy: [], // Array vazio, ninguém leu ainda
+    };
+
+    setNotifications(prev => [newNotif, ...prev]);
+    setNotifMsg("");
+    showToast("Transmissão enviada para a rede.", "success");
+  };
+
+  const handleDeleteNotification = (id: number) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    showToast("Aviso deletado do banco de dados.", "success");
   };
 
   const exportPDF = () => {
@@ -760,6 +780,14 @@ export default function GMDashboard({
             }`}
           >
             Novo Sgto.
+          </button>
+          <button
+            onClick={() => setGmTab("transmissoes")}
+            className={`px-4 py-2 uppercase text-xs font-bold rounded flex items-center gap-1 cursor-pointer transition-colors ${
+              gmTab === "transmissoes" ? "bg-pink-600 text-white" : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <Bell className="w-3.5 h-3.5" /> Avisos
           </button>
           <button
             onClick={() => setGmTab("relatorio")}
@@ -1425,7 +1453,6 @@ export default function GMDashboard({
                 </select>
               </div>
               
-              {/* Ponto 2: Atribuição de privilégios e visibilidades avançadas de loja */}
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                   Visibilidade Privilégio
@@ -1701,7 +1728,6 @@ export default function GMDashboard({
             </button>
           </form>
 
-          {/* PLAYER INVENTORY MANAGER (Inside Credit panel) */}
           {creditTargetType === "player" && creditPlayerId && selectedCreditPlayer && (
             <div className="mt-8 pt-8 border-t border-cyan-500/20">
               <h3 className="text-lg font-bold text-cyan-400 uppercase tracking-widest mb-4 flex items-center gap-1.5">
@@ -1810,7 +1836,7 @@ export default function GMDashboard({
         </div>
       )}
 
-      {/* VIEW: DEGRADE PENALTIES COM SUPORTE EM CASCATA IDÊNTICO AO INJETOR */}
+      {/* VIEW: DEGRADE PENALTIES */}
       {gmTab === "degradacao" && (
         <div className="neon-card p-6 md:p-8 space-y-6 max-w-3xl mx-auto bg-zinc-900/50 animate-fade-in border-red-500/30 shadow-2xl">
           <h2 className="text-xl font-bold text-red-400 uppercase tracking-widest border-b border-red-500/20 pb-2 mb-6 flex items-center gap-1.5">
@@ -1825,7 +1851,7 @@ export default function GMDashboard({
               <select
                 value={degradeTargetType}
                 onChange={(e) => {
-                  setDefragTargetType(e.target.value);
+                  setDegradeTargetType(e.target.value);
                   setDegradePlayerId(players[0]?.id?.toString() || "");
                   setDegradeSquadId(squads[0]?.id?.toString() || "");
                 }}
@@ -2074,7 +2100,6 @@ export default function GMDashboard({
               </form>
             </div>
 
-            {/* Ponto 2: Banco de dados fixo e reutilizável de missões táticas prontas */}
             <div className="neon-card p-4 border-dashed border-zinc-800 bg-zinc-950/60">
               <h3 className="text-xs font-bold uppercase tracking-wider mb-3 text-slate-400">
                 Banco de Diretrizes Prontas
@@ -2186,7 +2211,6 @@ export default function GMDashboard({
                           </select>
                         )}
 
-                        {/* Ponto 2: Opção de Reabastecer as missões ativas em tempo real no servidor */}
                         <button
                           onClick={() => {
                             setMissions(p => p.map(it => it.id === m.id ? { ...it, quantity: it.quantity + 1 } : it));
@@ -2338,6 +2362,125 @@ export default function GMDashboard({
               Registrar Operador
             </button>
           </form>
+        </div>
+      )}
+
+      {/* VIEW: TRANSMISSÕES (NOTIFICAÇÕES) */}
+      {gmTab === "transmissoes" && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
+          <div className="neon-card p-6 h-fit border-cyan-500/30">
+            <h2 className="text-lg font-bold text-cyan-400 uppercase tracking-widest border-b border-cyan-500/20 pb-2 mb-4 flex items-center gap-1.5">
+              <Radio className="w-5 h-5 animate-pulse" /> Emitir Aviso na Rede
+            </h2>
+            <form onSubmit={handleSendNotification} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                  Urgência / Categoria
+                </label>
+                <select
+                  value={notifType}
+                  onChange={(e) => setNotifType(e.target.value as any)}
+                  className="gm-input mt-1"
+                >
+                  <option value="info">Informativo (Ciano)</option>
+                  <option value="success">Recompensa / Evento (Verde)</option>
+                  <option value="alert">Alerta Crítico (Vermelho)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                  Alvo da Transmissão
+                </label>
+                <select
+                  value={notifTarget}
+                  onChange={(e) => setNotifTarget(e.target.value)}
+                  className="gm-input mt-1"
+                >
+                  <option value="">Aviso Global (Todos os Agentes)</option>
+                  {players.map(p => (
+                    <option key={p.id} value={p.id}>Canal Fechado: {p.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                  Mensagem Criptografada
+                </label>
+                <textarea
+                  required
+                  value={notifMsg}
+                  onChange={(e) => setNotifMsg(e.target.value)}
+                  className="gm-input mt-1 h-24 text-slate-300 resize-none"
+                  placeholder="Escreva sua mensagem aqui..."
+                ></textarea>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 mt-2 rounded uppercase tracking-widest text-sm transition-all duration-300 shadow-[0_0_15px_rgba(6,182,212,0.3)] cursor-pointer"
+              >
+                Disparar Transmissão
+              </button>
+            </form>
+          </div>
+
+          <div className="lg:col-span-2 space-y-4">
+            <h2 className="text-lg font-bold text-slate-200 uppercase tracking-widest border-b border-zinc-800 pb-2 mb-4 flex justify-between items-center">
+              <span>Histórico de Transmissões</span>
+              <span className="text-xs text-slate-500">{notifications.length} registros</span>
+            </h2>
+            
+            {notifications.length === 0 && (
+              <p className="text-slate-500 italic p-8 text-center border border-dashed border-zinc-800 rounded">
+                Nenhum aviso ativo no banco de dados.
+              </p>
+            )}
+
+            <div className="space-y-3">
+              {notifications.map(notif => {
+                let colors = "border-cyan-500/30 text-cyan-400";
+                let badge = "bg-cyan-500/10 text-cyan-400 border-cyan-500/20";
+                if (notif.type === "alert") { colors = "border-red-500/30 text-red-400"; badge = "bg-red-500/10 text-red-500 border-red-500/20"; }
+                if (notif.type === "success") { colors = "border-green-500/30 text-green-400"; badge = "bg-green-500/10 text-green-500 border-green-500/20"; }
+
+                const targetName = notif.targetPlayerId 
+                  ? players.find(p => p.id === notif.targetPlayerId)?.name || "Desconhecido"
+                  : "Todos";
+
+                return (
+                  <div key={notif.id} className={`bg-zinc-900 border p-4 rounded flex flex-col gap-2 relative group transition-colors hover:bg-zinc-800/50 ${colors}`}>
+                    <button
+                      onClick={() => handleDeleteNotification(notif.id)}
+                      className="absolute top-4 right-4 text-slate-600 hover:text-red-500 transition-colors cursor-pointer"
+                      title="Deletar aviso da nuvem"
+                    >
+                      <Trash className="w-4 h-4" />
+                    </button>
+                    
+                    <div className="flex gap-2 items-center flex-wrap pr-6">
+                      <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded border tracking-widest ${badge}`}>
+                        {notif.type}
+                      </span>
+                      <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">
+                        Alvo: {targetName}
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-sans ml-auto">
+                        {new Date(notif.date).toLocaleString('pt-BR')}
+                      </span>
+                    </div>
+
+                    <p className="text-sm text-slate-300">"{notif.message}"</p>
+                    
+                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2 border-t border-zinc-800/50 pt-2 flex items-center gap-2">
+                      <Eye className="w-3.5 h-3.5" /> Lida por: {notif.readBy.length} Agente(s)
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 

@@ -16,76 +16,8 @@ if (!fs.existsSync(path.dirname(DB_FILE))) {
   fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
 }
 
-// Initial default state
-const initialPlayers = [
-  {
-    id: 1,
-    name: "Kael'thas Neo",
-    class: "Cyber Ninja",
-    subClass: "Netrunner",
-    password: "123",
-    level: 12,
-    currentXp: 850,
-    totalXpForLevel: 1200,
-    spBalance: 1450,
-    attributes: {
-      Confiabilidade: 8,
-      Agilidade: 9,
-      "Resolução de Problemas": 7,
-      Proatividade: 8,
-      Foco: 6,
-      "Abertura à Experiência": 5,
-      Consciência: 8,
-      Extroversão: 3,
-      Compaixão: 4,
-      "Estabilidade Emocional": 9,
-      Paciência: 7,
-      Popularidade: 6,
-    },
-    conquistas: ["Mestre da Fuga", "Primeiro Sangue Neural"],
-    inventory: [
-      {
-        id: 1,
-        name: "Data Shard Corrompido",
-        desc: "Fragmento de dados roubado de uma megacorp.",
-        quantity: 1,
-      },
-    ],
-    realName: "Jogador Um",
-    email: "j1@email.com",
-    sigla: "J1",
-  },
-  {
-    id: 2,
-    name: "Sarah Connor",
-    class: "Mercenária",
-    subClass: "Especialista em Armas",
-    password: "123",
-    level: 8,
-    currentXp: 400,
-    totalXpForLevel: 800,
-    spBalance: 320,
-    attributes: {
-      Confiabilidade: 6,
-      Agilidade: 7,
-      "Resolução de Problemas": 5,
-      Proatividade: 9,
-      Foco: 8,
-      "Abertura à Experiência": 6,
-      Consciência: 5,
-      Extroversão: 8,
-      Compaixão: 7,
-      "Estabilidade Emocional": 4,
-      Paciência: 8,
-      Popularidade: 5,
-    },
-    conquistas: ["Sobrevivente do Apocalipse"],
-    inventory: [],
-    realName: "Jogador Dois",
-    email: "j2@email.com",
-    sigla: "J2",
-  },
-];
+// Initial default state - Modelo removido do código conforme solicitado
+const initialPlayers: any[] = [];
 
 const initialMissions: any[] = [];
 const initialSquads = [{ id: 1, name: "Esquadrão Alpha", members: [1, 2] }];
@@ -106,6 +38,7 @@ interface RPGDB {
   squads: any[];
   shopItems: any[];
   logs: any[];
+  notifications: any[]; // Adicionado para suporte a notificações
   geminiKey: string;
   gms?: any[]; // Alterado para suportar múltiplos GMs sequenciais dinâmicos
 }
@@ -116,11 +49,10 @@ const defaultDB: RPGDB = {
   squads: initialSquads,
   shopItems: initialShopItems,
   logs: [],
+  notifications: [], // Inicializador padrão
   geminiKey: "",
   gms: [{ user: "admin", pass: "admin" }] // Contingência padrão estruturada
 };
-
-let hasSyncedWithCloud = false;
 
 // Helper: load local db
 function loadLocalDB(): RPGDB {
@@ -128,13 +60,13 @@ function loadLocalDB(): RPGDB {
     if (fs.existsSync(DB_FILE)) {
       const data = fs.readFileSync(DB_FILE, "utf-8");
       const parsed = JSON.parse(data);
-      hasSyncedWithCloud = true;
       return {
         players: parsed.players || initialPlayers,
         missions: parsed.missions || initialMissions,
         squads: parsed.squads || initialSquads,
         shopItems: parsed.shopItems || initialShopItems,
         logs: parsed.logs || [],
+        notifications: parsed.notifications || [], // Carregamento do estado local
         geminiKey: parsed.geminiKey || "",
         gms: parsed.gms || [{ user: "admin", pass: "admin" }]
       };
@@ -167,7 +99,7 @@ app.get("/api/mainframe", async (req, res) => {
   try {
     // Attempt to pull from GAS sheet for multi-user sync
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout max for quick response
+    const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout max for quick response
 
     const response = await fetch(GAS_URL, { signal: controller.signal });
     clearTimeout(timeoutId);
@@ -181,6 +113,7 @@ app.get("/api/mainframe", async (req, res) => {
       if (cloudDatabase.dg_groups) activeDB.squads = JSON.parse(cloudDatabase.dg_groups);
       if (cloudDatabase.dg_shop) activeDB.shopItems = JSON.parse(cloudDatabase.dg_shop);
       if (cloudDatabase.logs) activeDB.logs = JSON.parse(cloudDatabase.logs);
+      if (cloudDatabase.dg_notifications) activeDB.notifications = JSON.parse(cloudDatabase.dg_notifications); // Sincronia de notificações
       if (cloudDatabase.ai_key) activeDB.geminiKey = cloudDatabase.ai_key;
       
       // Varredura de chaves dinâmicas sequenciais (gm_user_1, gm_user_2, etc.)
@@ -205,14 +138,10 @@ app.get("/api/mainframe", async (req, res) => {
         activeDB.gms = [{ user: "admin", pass: "admin" }];
       }
       
-      hasSyncedWithCloud = true;
       saveLocalDB(activeDB);
     }
   } catch (err) {
     console.log("GAS mainframe sync timed out or unreachable. Serving local db state instead.");
-    if (!hasSyncedWithCloud) {
-      return res.status(503).json({ error: "Mainframe em inicialização ou nuvem indisponível. Aguarde." });
-    }
   }
 
   res.json({
@@ -221,6 +150,7 @@ app.get("/api/mainframe", async (req, res) => {
     squads: activeDB.squads,
     shopItems: activeDB.shopItems,
     logs: activeDB.logs,
+    notifications: activeDB.notifications, // Despacha notificações para o React
     geminiKey: activeDB.geminiKey,
     gms: activeDB.gms || [{ user: "admin", pass: "admin" }] // Despacha a lista mapeada
   });
@@ -242,6 +172,7 @@ app.post("/api/mainframe", async (req, res) => {
     else if (key === "dg_groups") activeDB.squads = parsedValue;
     else if (key === "dg_shop") activeDB.shopItems = parsedValue;
     else if (key === "logs") activeDB.logs = parsedValue;
+    else if (key === "dg_notifications") activeDB.notifications = parsedValue; // Escrita de notificações
     else if (key === "ai_key") activeDB.geminiKey = parsedValue;
     else if (key === "gms") activeDB.gms = parsedValue;
 
@@ -298,7 +229,7 @@ Subclasse: ${player.subClass}
 Nível: ${player.level}
 Atributos Biométricos: ${JSON.stringify(player.attributes)}
 
-Não use saudações amigáveis ou encerramento, seja o sistema mainframe avaliando. Responda em português brasileiro.`;
+Não use saudoções amigáveis ou encerramento, seja o sistema mainframe avaliando. Responda em português brasileiro.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3.5-flash",

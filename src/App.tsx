@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { RefreshCw, Settings, LogOut } from "lucide-react";
-import { Player, Mission, Squad, ShopItem, LogEntry } from "./types";
+import { Player, Mission, Squad, ShopItem, LogEntry, Notification } from "./types";
 import { generateUniqueId } from "./utils/id";
 import MainGate from "./components/MainGate";
 import PlayerDashboard from "./components/PlayerDashboard";
@@ -100,17 +100,15 @@ export default function App() {
   const [squads, setSquads] = useState<Squad[]>([]);
   const [shopItems, setShopItems] = useState<ShopItem[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]); // Estado de notificações
   const [geminiKey, setGeminiKey] = useState("");
-  const [gms, setGms] = useState<any[]>([]); // Estado adicionado para suportar múltiplos GMs
+  const [gms, setGms] = useState<any[]>([]);
 
   const [showSettings, setShowSettings] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  // Trava física para impedir disparos automatizados redundantes ou precipitados (Corrige sumiço de logs)
   const initialFetchDone = useRef(false);
   const isDataLoaded = useRef(false);
-
-  // Sync state reference to avoid endless loop updates
   const skipNextPush = useRef<{ [key: string]: boolean }>({});
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
@@ -125,13 +123,13 @@ export default function App() {
       if (res.ok) {
         const cloudDatabase = await res.json();
         
-        // Block redundant pushes when we are just pulling
         skipNextPush.current = {
           players: true,
           missions: true,
           squads: true,
           shopItems: true,
           logs: true,
+          dg_notifications: true, // Adicionado ao bypass de gravação no pull
           geminiKey: true,
         };
 
@@ -140,10 +138,10 @@ export default function App() {
         setSquads(cloudDatabase.squads || defaultSquads);
         setShopItems(cloudDatabase.shopItems || defaultShopItems);
         setLogs(cloudDatabase.logs || []);
+        setNotifications(cloudDatabase.notifications || []); // Extração da nuvem
         setGeminiKey(cloudDatabase.geminiKey || "");
         setGms(cloudDatabase.gms || [{ user: "admin", pass: "admin" }]);
 
-        // Ativa a liberação apenas após popular os estados com o histórico real da nuvem
         isDataLoaded.current = true;
 
         if (!silent) showToast("Mainframe Sincronizado!", "success");
@@ -169,11 +167,10 @@ export default function App() {
         body: JSON.stringify({ key, value: valueObj }),
       });
     } catch (e) {
-      // Local database is still updated, fails silent on background push
+      // Fails silent on background push
     }
   };
 
-  // 1. Fetch on load
   useEffect(() => {
     if (!initialFetchDone.current) {
       initialFetchDone.current = true;
@@ -181,7 +178,7 @@ export default function App() {
     }
   }, []);
 
-  // 2. Observadores persistentes e blindados pela trava isDataLoaded
+  // Observadores protegidos pela trava blindada
   useEffect(() => {
     if (isDataLoaded.current && players.length > 0) pushToMainframe("players", players);
   }, [players]);
@@ -202,11 +199,15 @@ export default function App() {
     if (isDataLoaded.current && logs.length > 0) pushToMainframe("logs", logs);
   }, [logs]);
 
+  // Observador autônomo da nova chave de notificações
+  useEffect(() => {
+    if (isDataLoaded.current) pushToMainframe("dg_notifications", notifications);
+  }, [notifications]);
+
   useEffect(() => {
     if (isDataLoaded.current && geminiKey) pushToMainframe("ai_key", geminiKey);
   }, [geminiKey]);
 
-  // When GM inspects operational sheets, pre-select the first player if none is chosen
   useEffect(() => {
     if (sessionType === "gm" && view === "player" && loggedPlayerId === null && players.length > 0) {
       setLoggedPlayerId(players[0].id);
@@ -236,7 +237,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen text-slate-100 flex flex-col font-sans">
-      {/* Dynamic Toast Feed */}
       {toast && (
         <div
           className={`fixed top-4 right-4 z-50 px-4 py-3 border font-bold uppercase tracking-widest text-xs rounded transition-all duration-300 shadow-[0_0_15px_rgba(0,0,0,0.6)] ${
@@ -249,7 +249,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Main Terminal Shell header */}
       {sessionType !== "none" && (
         <nav className="bg-zinc-950 border-b border-zinc-850 p-4 sticky top-0 z-40 shadow-md">
           <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
@@ -340,7 +339,6 @@ export default function App() {
         </nav>
       )}
 
-      {/* Settings Panel details */}
       {showSettings && sessionType === "gm" && (
         <div className="bg-zinc-900 border-b border-zinc-800 p-4">
           <div className="max-w-7xl mx-auto flex items-end gap-4 flex-wrap">
@@ -369,12 +367,11 @@ export default function App() {
         </div>
       )}
 
-      {/* Router Views Container */}
       <main className="flex-1 pb-16">
         {sessionType === "none" ? (
           <MainGate
             players={players}
-            gms={gms} // Repassa a lista de GMs atualizada para a portaria
+            gms={gms}
             showToast={showToast}
             onGMLogin={() => {
               setSessionType("gm");
@@ -397,13 +394,18 @@ export default function App() {
               squads={squads}
               shopItems={shopItems}
               setShopItems={setShopItems}
+              logs={logs}
+              notifications={notifications}
+              setNotifications={setNotifications}
               addLog={addLog}
               geminiKey={geminiKey}
               showToast={showToast}
             />
           ) : (
-            <div className="text-center p-8 text-slate-500 font-bold uppercase tracking-widest mt-12 select-none">
-              Aguardando sincronização neural do sujeito no terminal...
+            <div className="text-center p-8 text-slate-500 font-bold flex flex-col items-center justify-center min-h-[50vh] uppercase tracking-widest select-none">
+              <Activity className="w-12 h-12 text-cyan-500 mb-4 animate-pulse" />
+              <span>Sincronizando sub-rede Neural com a Planilha...</span>
+              <span className="text-[10px] mt-2 text-slate-600 normal-case">Se demorar mais de 10s, clique no botão de atualizar no topo.</span>
             </div>
           )
         ) : (
@@ -417,6 +419,8 @@ export default function App() {
             shopItems={shopItems}
             setShopItems={setShopItems}
             logs={logs}
+            notifications={notifications}
+            setNotifications={setNotifications}
             addLog={addLog}
             showToast={showToast}
           />
