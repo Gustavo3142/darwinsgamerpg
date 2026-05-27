@@ -101,6 +101,9 @@ export default function GMDashboard({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const [missionFilter, setMissionFilter] = useState("todas");
+  const [shopFilter, setShopFilter] = useState("todas");
+  const [notifFilter, setNotifFilter] = useState("todas");
+
   const [newConquistaRarity, setNewConquistaRarity] = useState("comum");
   const [removeQtyState, setRemoveQtyState] = useState<{ [key: number]: string }>({});
   const [newItemRarity, setNewItemRarity] = useState("comum");
@@ -120,7 +123,7 @@ export default function GMDashboard({
   const missionTemplates = [
     { title: "Incursão Datacenter Arasaka", desc: "Infiltre o subnível 4, drene os núcleos criptografados e sabote o gerador principal sem detecção.", sp: 200, xp: 450 },
     { title: "Extração de Informante Corp", desc: "Escolte o desertor da Militech em segurança pelas docas industriais até o ponto de extração.", sp: 150, xp: 300 },
-    { title: "Limpeza de Malware Sindicato", desc: "Expurgue a infecção cibernética dos servidores locais infectados por uma facção hacker rival.", sp: 100, xp: 200 }
+    { title: "Limpeza de Malware", desc: "Expurgue a infecção cibernética dos servidores locais infectados por um esquadrão hacker rival.", sp: 100, xp: 200 }
   ];
 
   const [reportStartDate, setReportStartDate] = useState("");
@@ -174,7 +177,9 @@ export default function GMDashboard({
   // Notification State
   const [notifMsg, setNotifMsg] = useState("");
   const [notifType, setNotifType] = useState<"info" | "alert" | "success">("info");
-  const [notifTarget, setNotifTarget] = useState("");
+  const [notifVisibilityType, setNotifVisibilityType] = useState("geral");
+  const [notifTargetPlayerId, setNotifTargetPlayerId] = useState(players[0]?.id?.toString() || "");
+  const [notifTargetSquadId, setNotifTargetSquadId] = useState(squads[0]?.id?.toString() || "");
 
   const selectedPlayer = players.find((p) => p.id === selectedPlayerId) || players[0];
   const selectedCreditPlayer = players.find((p) => p.id === Number(creditPlayerId)) || players[0];
@@ -418,7 +423,7 @@ export default function GMDashboard({
     } else if (creditTargetType === "squad") {
       if (!creditSquadId) return showToast("Selecione um esquadrão divisor.", "error");
       const squad = squads.find((s) => s.id === Number(creditSquadId));
-      if (!squad) return showToast("Classe de esquadrão não identificada.", "error");
+      if (!squad) return showToast("Esquadrão não identificado.", "error");
       targetIds = squad.members;
       targetNameLog = `Esquadrão ${squad.name}`;
     }
@@ -486,7 +491,7 @@ export default function GMDashboard({
     } else if (degradeTargetType === "squad") {
       if (!degradeSquadId) return showToast("Selecione um esquadrão divisor.", "error");
       const squad = squads.find((s) => s.id === Number(degradeSquadId));
-      if (!squad) return showToast("Sindicato não identificado.", "error");
+      if (!squad) return showToast("Esquadrão não identificado.", "error");
       targetIds = squad.members;
       targetNameLog = `Esquadrão ${squad.name}`;
     }
@@ -678,8 +683,9 @@ export default function GMDashboard({
       date: new Date().toISOString(),
       message: notifMsg.trim(),
       type: notifType,
-      targetPlayerId: notifTarget ? Number(notifTarget) : null,
-      readBy: [], // Array vazio, ninguém leu ainda
+      targetPlayerId: notifVisibilityType === "especifica" ? Number(notifTargetPlayerId) : null,
+      targetSquadId: notifVisibilityType === "esquadrao" ? Number(notifTargetSquadId) : null,
+      readBy: [], 
     };
 
     setNotifications(prev => [newNotif, ...prev]);
@@ -1269,12 +1275,12 @@ export default function GMDashboard({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="neon-card p-6 h-fit border-blue-500/30">
             <h2 className="text-lg font-bold text-blue-500 uppercase tracking-widest border-b border-blue-500/20 pb-2 mb-4 flex items-center gap-1.5">
-              <Users className="w-5 h-5 animate-pulse" /> Criar Sindicato (Squad)
+              <Users className="w-5 h-5 animate-pulse" /> Criar Esquadrão
             </h2>
             <form onSubmit={handleCreateSquad} className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                  Codinome da Facção
+                  Codinome do Esquadrão
                 </label>
                 <input
                   required
@@ -1323,7 +1329,7 @@ export default function GMDashboard({
                 type="submit"
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 mt-2 rounded uppercase tracking-widest text-sm transition-all duration-300 shadow-[0_0_15px_rgba(37,99,235,0.3)] cursor-pointer"
               >
-                Registrar Sindicato
+                Registrar Esquadrão
               </button>
             </form>
           </div>
@@ -1334,7 +1340,7 @@ export default function GMDashboard({
             </h2>
             {squads.length === 0 && (
               <p className="text-slate-500 italic p-8 text-center border border-dashed border-zinc-800 rounded">
-                Nenhum grupo ou sindicato de facção registrado.
+                Nenhum esquadrão registrado.
               </p>
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1463,7 +1469,7 @@ export default function GMDashboard({
                   className="gm-input mt-1 text-slate-300"
                 >
                   <option value="geral">Mercado Público (Todos)</option>
-                  <option value="esquadrao">Restrito a Sindicato (Squad)</option>
+                  <option value="esquadrao">Restrito a Esquadrão</option>
                   <option value="especifica">Foco Único (Sujeito exclusivo)</option>
                 </select>
               </div>
@@ -1514,16 +1520,42 @@ export default function GMDashboard({
           </div>
 
           <div className="lg:col-span-2 space-y-4 animate-fade-in">
-            <h2 className="text-lg font-bold text-slate-200 uppercase tracking-widest border-b border-zinc-800 pb-2 mb-4">
-              Catálogo Ativo no Mercado Negro
-            </h2>
-            {shopItems.length === 0 && (
+            <div className="flex justify-between items-center border-b border-purple-500/20 pb-2 mb-4">
+              <h2 className="text-lg font-bold text-slate-200 uppercase tracking-widest m-0 border-none pb-0">
+                Catálogo Ativo no Mercado Negro
+              </h2>
+              <select
+                value={shopFilter}
+                onChange={(e) => setShopFilter(e.target.value)}
+                className="gm-input !w-auto !py-1 !text-xs text-purple-400 font-bold border-purple-500/30"
+              >
+                <option value="todas">Todos</option>
+                <option value="geral">Gerais (Públicos)</option>
+                <option value="esquadrao">Esquadrões</option>
+                <option value="especifica">Individuais</option>
+              </select>
+            </div>
+            
+            {shopItems.filter(i => {
+              if (shopFilter === "geral") return i.targetPlayerId === null && !i.targetSquadId;
+              if (shopFilter === "esquadrao") return i.targetSquadId != null;
+              if (shopFilter === "especifica") return i.targetPlayerId !== null;
+              return true;
+            }).length === 0 && (
               <p className="text-slate-500 italic p-8 text-center border border-dashed border-zinc-800 rounded">
-                O fornecimento está sem mercadorias no momento.
+                Nenhum item encontrado neste filtro.
               </p>
             )}
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {shopItems.map((item) => {
+              {shopItems
+                .filter(i => {
+                  if (shopFilter === "geral") return i.targetPlayerId === null && !i.targetSquadId;
+                  if (shopFilter === "esquadrao") return i.targetSquadId != null;
+                  if (shopFilter === "especifica") return i.targetPlayerId !== null;
+                  return true;
+                })
+                .map((item) => {
                 const r = (item as any).rarity || "comum";
                 const tSquadId = (item as any).targetSquadId;
                 let shopColor = "border-purple-500/20";
@@ -1546,12 +1578,12 @@ export default function GMDashboard({
                         <div className="flex gap-1.5">
                           {item.targetPlayerId && (
                             <span className="text-[9px] bg-purple-900/50 text-purple-300 px-2 py-0.5 rounded uppercase tracking-widest border border-purple-500/30 font-bold">
-                              Exclusivo
+                              Alvo: {players.find(p => p.id === item.targetPlayerId)?.name}
                             </span>
                           )}
                           {tSquadId && (
                             <span className="text-[9px] bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded uppercase tracking-widest border border-blue-500/30 font-bold">
-                              Squad
+                              Esquadrão: {squads.find(s => s.id === tSquadId)?.name}
                             </span>
                           )}
                           <span className={`text-[9px] px-2 py-0.5 rounded uppercase tracking-widest font-bold bg-zinc-950 border ${shopColor} ${titleColor}`}>
@@ -1851,7 +1883,7 @@ export default function GMDashboard({
               <select
                 value={degradeTargetType}
                 onChange={(e) => {
-                  setDegradeTargetType(e.target.value);
+                  setDegradeTargetType(e.target.value); // BUG CORRIGIDO AQUI
                   setDegradePlayerId(players[0]?.id?.toString() || "");
                   setDegradeSquadId(squads[0]?.id?.toString() || "");
                 }}
@@ -2051,7 +2083,7 @@ export default function GMDashboard({
                     className="gm-input mt-1 text-slate-300"
                   >
                     <option value="geral">Público Geral (Pra Todos)</option>
-                    <option value="esquadrao">Restrito a Sindicato (Squad)</option>
+                    <option value="esquadrao">Restrito a Esquadrão</option>
                     <option value="especifica">Foco Único (Sujeito específico)</option>
                   </select>
                 </div>
@@ -2136,7 +2168,7 @@ export default function GMDashboard({
               <select
                 value={missionFilter}
                 onChange={(e) => setMissionFilter(e.target.value)}
-                className="gm-input !w-auto !py-1 !text-xs text-cyan-400 font-bold"
+                className="gm-input !w-auto !py-1 !text-xs text-cyan-400 font-bold border-cyan-500/30"
               >
                 <option value="todas">Todas</option>
                 <option value="geral">Gerais (Públicas)</option>
@@ -2144,9 +2176,21 @@ export default function GMDashboard({
                 <option value="especifica">Individuais</option>
               </select>
             </div>
+            
+            {missions.filter(m => {
+              if (missionFilter === "geral") return m.targetPlayerId === null && m.targetSquadId === null;
+              if (missionFilter === "esquadrao") return m.targetSquadId !== null;
+              if (missionFilter === "especifica") return m.targetPlayerId !== null;
+              return true; 
+            }).length === 0 && (
+              <p className="text-slate-500 italic p-8 text-center border border-dashed border-zinc-800 rounded">
+                Nenhuma diretriz de missão encontrada neste filtro.
+              </p>
+            )}
+
             {missions
               .filter(m => {
-                if (missionFilter === "geral") return !m.targetPlayerId && !m.targetSquadId;
+                if (missionFilter === "geral") return m.targetPlayerId === null && m.targetSquadId === null;
                 if (missionFilter === "esquadrao") return m.targetSquadId !== null;
                 if (missionFilter === "especifica") return m.targetPlayerId !== null;
                 return true; 
@@ -2239,129 +2283,7 @@ export default function GMDashboard({
                   </div>
                 );
               })}
-            {missions.length === 0 && (
-              <p className="text-slate-500 italic p-8 text-center border border-dashed border-zinc-800 rounded">
-                Nenhuma diretriz de missão activa no servidor.
-              </p>
-            )}
           </div>
-        </div>
-      )}
-
-      {/* VIEW: REGISTER NEW OPERATOR */}
-      {gmTab === "cadastro" && (
-        <div className="neon-card p-6 md:p-8 space-y-6 max-w-3xl mx-auto bg-zinc-900/50 animate-fade-in border-pink-500/30 shadow-2xl">
-          <h2 className="text-xl font-bold text-pink-500 uppercase tracking-widest border-b border-pink-500/20 pb-2 mb-6">
-            Cadastrar Novo Operador no Servidor
-          </h2>
-          <form onSubmit={handleRegisterPlayer} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-xs uppercase text-slate-400 font-bold mb-1">
-                  Nome Completo
-                </label>
-                <input
-                  required
-                  type="text"
-                  value={regName}
-                  onChange={(e) => setRegName(e.target.value)}
-                  className="gm-input text-slate-200"
-                  placeholder="Ex: Gustavo Bach"
-                />
-              </div>
-              <div>
-                <label className="block text-xs uppercase text-slate-400 font-bold mb-1">
-                  E-mail de Cadastro
-                </label>
-                <input
-                  required
-                  type="email"
-                  value={regEmail}
-                  onChange={(e) => setRegEmail(e.target.value)}
-                  className="gm-input text-slate-200"
-                  placeholder="usuario@dominio.com"
-                />
-              </div>
-              <div>
-                <label className="block text-xs uppercase text-slate-400 font-bold mb-1">
-                  Sigla ID (Ex: J1)
-                </label>
-                <input
-                  required
-                  type="text"
-                  value={regSigla}
-                  onChange={(e) => setRegSigla(e.target.value)}
-                  className="gm-input text-slate-200"
-                  placeholder="Ex: G1"
-                />
-              </div>
-              <div>
-                <label className="block text-xs uppercase text-pink-400 font-bold mb-1">
-                  Senha Provisória
-                </label>
-                <input
-                  required
-                  type="password"
-                  value={regPassword}
-                  onChange={(e) => setRegPassword(e.target.value)}
-                  className="gm-input border-pink-500/50 text-slate-200 font-sans"
-                  placeholder="••••••••"
-                />
-              </div>
-            </div>
-
-            <h3 className="text-cyan-400 font-bold uppercase tracking-widest text-sm border-b border-cyan-500/20 pb-1.5 mt-6 mb-4">
-              Dados do Operador Cyborg
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-xs uppercase text-slate-400 font-bold mb-1">
-                  Apelido Cyborg
-                </label>
-                <input
-                  required
-                  type="text"
-                  value={regCharName}
-                  onChange={(e) => setRegCharName(e.target.value)}
-                  className="gm-input text-slate-200"
-                  placeholder="Ex: Kael'thas Neo"
-                />
-              </div>
-              <div>
-                <label className="block text-xs uppercase text-slate-400 font-bold mb-1">
-                  Classe
-                </label>
-                <input
-                  required
-                  type="text"
-                  value={regClass}
-                  onChange={(e) => setRegClass(e.target.value)}
-                  className="gm-input text-slate-200"
-                  placeholder="Ex: Cyber Ninja"
-                />
-              </div>
-              <div>
-                <label className="block text-xs uppercase text-slate-400 font-bold mb-1">
-                  Subclasse
-                </label>
-                <input
-                  required
-                  type="text"
-                  value={regSubClass}
-                  onChange={(e) => setRegSubClass(e.target.value)}
-                  className="gm-input text-slate-200"
-                  placeholder="Ex: Netrunner"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full bg-pink-600 hover:bg-pink-500 text-white font-bold py-3 mt-4 rounded uppercase tracking-widest text-sm transition-all duration-300 shadow-[0_0_15px_rgba(236,72,153,0.3)] cursor-pointer"
-            >
-              Registrar Operador
-            </button>
-          </form>
         </div>
       )}
 
@@ -2390,19 +2312,54 @@ export default function GMDashboard({
 
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                  Alvo da Transmissão
+                  Visibilidade Privilégio
                 </label>
                 <select
-                  value={notifTarget}
-                  onChange={(e) => setNotifTarget(e.target.value)}
-                  className="gm-input mt-1"
+                  value={notifVisibilityType}
+                  onChange={(e) => setNotifVisibilityType(e.target.value)}
+                  className="gm-input mt-1 text-slate-300"
                 >
-                  <option value="">Aviso Global (Todos os Agentes)</option>
-                  {players.map(p => (
-                    <option key={p.id} value={p.id}>Canal Fechado: {p.name}</option>
-                  ))}
+                  <option value="geral">Aviso Global (Todos)</option>
+                  <option value="esquadrao">Restrito a Esquadrão</option>
+                  <option value="especifica">Foco Único (Sujeito específico)</option>
                 </select>
               </div>
+              {notifVisibilityType === "especifica" && (
+                <div className="animate-fade-in">
+                  <label className="text-xs font-bold text-purple-400 uppercase tracking-widest">
+                    Selecionar Alvo
+                  </label>
+                  <select
+                    value={notifTargetPlayerId}
+                    onChange={(e) => setNotifTargetPlayerId(e.target.value)}
+                    className="gm-input mt-1 border-purple-500 text-purple-400 font-semibold text-sm"
+                  >
+                    {players.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {notifVisibilityType === "esquadrao" && (
+                <div className="animate-fade-in">
+                  <label className="text-xs font-bold text-blue-400 uppercase tracking-widest">
+                    Selecionar Esquadrão Alvo
+                  </label>
+                  <select
+                    value={notifTargetSquadId}
+                    onChange={(e) => setNotifTargetSquadId(e.target.value)}
+                    className="gm-input mt-1 border-blue-500 text-blue-400 font-semibold text-sm"
+                  >
+                    {squads.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
@@ -2426,20 +2383,43 @@ export default function GMDashboard({
             </form>
           </div>
 
-          <div className="lg:col-span-2 space-y-4">
-            <h2 className="text-lg font-bold text-slate-200 uppercase tracking-widest border-b border-zinc-800 pb-2 mb-4 flex justify-between items-center">
-              <span>Histórico de Transmissões</span>
-              <span className="text-xs text-slate-500">{notifications.length} registros</span>
-            </h2>
+          <div className="lg:col-span-2 space-y-4 animate-fade-in">
+            <div className="flex justify-between items-center border-b border-zinc-800 pb-2 mb-4">
+              <h2 className="text-lg font-bold text-slate-200 uppercase tracking-widest m-0 border-none pb-0">
+                Histórico de Transmissões
+              </h2>
+              <select
+                value={notifFilter}
+                onChange={(e) => setNotifFilter(e.target.value)}
+                className="gm-input !w-auto !py-1 !text-xs text-cyan-400 font-bold border-cyan-500/30"
+              >
+                <option value="todas">Todas</option>
+                <option value="geral">Gerais (Públicas)</option>
+                <option value="esquadrao">Esquadrões</option>
+                <option value="especifica">Individuais</option>
+              </select>
+            </div>
             
-            {notifications.length === 0 && (
+            {notifications.filter(n => {
+              if (notifFilter === "geral") return n.targetPlayerId === null && n.targetSquadId === null;
+              if (notifFilter === "esquadrao") return n.targetSquadId !== null;
+              if (notifFilter === "especifica") return n.targetPlayerId !== null;
+              return true;
+            }).length === 0 && (
               <p className="text-slate-500 italic p-8 text-center border border-dashed border-zinc-800 rounded">
-                Nenhum aviso ativo no banco de dados.
+                Nenhum aviso encontrado neste filtro.
               </p>
             )}
 
             <div className="space-y-3">
-              {notifications.map(notif => {
+              {notifications
+                .filter(n => {
+                  if (notifFilter === "geral") return n.targetPlayerId === null && n.targetSquadId === null;
+                  if (notifFilter === "esquadrao") return n.targetSquadId !== null;
+                  if (notifFilter === "especifica") return n.targetPlayerId !== null;
+                  return true;
+                })
+                .map(notif => {
                 let colors = "border-cyan-500/30 text-cyan-400";
                 let badge = "bg-cyan-500/10 text-cyan-400 border-cyan-500/20";
                 if (notif.type === "alert") { colors = "border-red-500/30 text-red-400"; badge = "bg-red-500/10 text-red-500 border-red-500/20"; }
@@ -2447,7 +2427,11 @@ export default function GMDashboard({
 
                 const targetName = notif.targetPlayerId 
                   ? players.find(p => p.id === notif.targetPlayerId)?.name || "Desconhecido"
+                  : notif.targetSquadId
+                  ? squads.find(s => s.id === notif.targetSquadId)?.name || "Desconhecido"
                   : "Todos";
+                  
+                const scopeLabel = notif.targetPlayerId ? "Indivíduo" : notif.targetSquadId ? "Esquadrão" : "Global";
 
                 return (
                   <div key={notif.id} className={`bg-zinc-900 border p-4 rounded flex flex-col gap-2 relative group transition-colors hover:bg-zinc-800/50 ${colors}`}>
@@ -2464,7 +2448,7 @@ export default function GMDashboard({
                         {notif.type}
                       </span>
                       <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">
-                        Alvo: {targetName}
+                        Alvo ({scopeLabel}): {targetName}
                       </span>
                       <span className="text-[10px] text-slate-500 font-sans ml-auto">
                         {new Date(notif.date).toLocaleString('pt-BR')}
@@ -2474,7 +2458,7 @@ export default function GMDashboard({
                     <p className="text-sm text-slate-300">"{notif.message}"</p>
                     
                     <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2 border-t border-zinc-800/50 pt-2 flex items-center gap-2">
-                      <Eye className="w-3.5 h-3.5" /> Lida por: {notif.readBy.length} Agente(s)
+                      <Eye className="w-3.5 h-3.5" /> Lida por: {(notif.readBy || []).length} Agente(s)
                     </div>
                   </div>
                 );
@@ -2539,7 +2523,7 @@ export default function GMDashboard({
                   >
                     <option value="todos">Todos os Operadores / Grupos</option>
                     <option value="individual">Individual (Sujeito Único)</option>
-                    <option value="esquadrao">Por Esquadrão (Sindicato)</option>
+                    <option value="esquadrao">Por Esquadrão</option>
                   </select>
                 </div>
 

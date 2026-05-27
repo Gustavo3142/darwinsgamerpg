@@ -54,6 +54,7 @@ export interface ShopItem {
   cost: number;
   stock: number;
   targetPlayerId: number | null;
+  targetSquadId?: number | null; // Adicionado para manter a padronização no frontend
 }
 
 export interface LogEntry {
@@ -72,6 +73,7 @@ export interface Notification {
   message: string;
   type: "info" | "alert" | "success";
   targetPlayerId: number | null;
+  targetSquadId: number | null; // <-- ADICIONADO AQUI
   readBy: number[];
 }
 

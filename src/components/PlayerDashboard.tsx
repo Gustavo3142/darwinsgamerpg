@@ -20,7 +20,7 @@ import {
   MessageSquare,
   AlertTriangle
 } from "lucide-react";
-import { Player, Mission, ShopItem, Notification } from "../types";
+import { Player, Mission, ShopItem, Notification, LogEntry } from "../types";
 import { generateUniqueId } from "../utils/id";
 
 const attributeIconsMap: { [key: string]: React.ComponentType<any> } = {
@@ -47,6 +47,7 @@ interface PlayerDashboardProps {
   squads: Array<{ id: number; name: string; members: number[] }>;
   shopItems: ShopItem[];
   setShopItems: React.Dispatch<React.SetStateAction<ShopItem[]>>;
+  logs: LogEntry[]; // <-- Adicionado para resolver o CRASH
   notifications: Notification[];
   setNotifications: React.Dispatch<React.SetStateAction<Notification[]>>;
   addLog: (playerId: number, action: string, desc: string, xp?: number, sp?: number) => void;
@@ -63,6 +64,7 @@ export default function PlayerDashboard({
   squads,
   shopItems,
   setShopItems,
+  logs,
   notifications,
   setNotifications,
   addLog,
@@ -87,20 +89,28 @@ export default function PlayerDashboard({
       (m.targetSquadId !== null && mySquads.includes(m.targetSquadId))
   );
 
-  // Derivações de Notificações
-  const myNotifications = notifications
-    .filter(n => n.targetPlayerId === null || n.targetPlayerId === player.id)
+  // Derivações de Notificações com blindagem de arrays (n.readBy || []) e suporte a Esquadrões
+  const safeNotifications = notifications || [];
+  const myNotifications = safeNotifications
+    .filter(n => 
+      (n.targetPlayerId === null && n.targetSquadId === null) || // Globais
+      n.targetPlayerId === player.id || // Individuais
+      (n.targetSquadId !== null && mySquads.includes(n.targetSquadId)) // Esquadrões
+    )
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   
-  const unreadCount = myNotifications.filter(n => !n.readBy.includes(player.id)).length;
+  const unreadCount = myNotifications.filter(n => !(n.readBy || []).includes(player.id)).length;
 
   const handleOpenNotifications = () => {
     setShowNotifPanel(true);
     let updated = false;
-    const newNotifs = notifications.map(n => {
-      if ((n.targetPlayerId === null || n.targetPlayerId === player.id) && !n.readBy.includes(player.id)) {
+    const newNotifs = safeNotifications.map(n => {
+      const isMine = (n.targetPlayerId === null && n.targetSquadId === null) || n.targetPlayerId === player.id || (n.targetSquadId !== null && mySquads.includes(n.targetSquadId));
+      const hasRead = (n.readBy || []).includes(player.id);
+      
+      if (isMine && !hasRead) {
         updated = true;
-        return { ...n, readBy: [...n.readBy, player.id] };
+        return { ...n, readBy: [...(n.readBy || []), player.id] };
       }
       return n;
     });
@@ -260,6 +270,12 @@ export default function PlayerDashboard({
                   if (n.type === "alert") { colors = "border-red-500/30 text-red-400"; Icon = AlertTriangle; }
                   if (n.type === "success") { colors = "border-green-500/30 text-green-400"; Icon = Sparkles; }
 
+                  const scopeTag = (n.targetPlayerId === null && n.targetSquadId === null) 
+                    ? "Global" 
+                    : (n.targetSquadId !== null) 
+                      ? "Esquadrão" 
+                      : "Direto";
+
                   return (
                     <div key={n.id} className={`bg-zinc-900 border p-4 rounded flex gap-4 items-start ${colors}`}>
                       <div className={`p-2 rounded-full border ${colors} bg-black/50 shrink-0`}>
@@ -271,7 +287,7 @@ export default function PlayerDashboard({
                             {new Date(n.date).toLocaleString('pt-BR')}
                           </span>
                           <span className={`text-[9px] uppercase px-2 py-0.5 rounded font-bold border ${colors} bg-black/50`}>
-                            {n.targetPlayerId === null ? "Global" : "Direto"}
+                            {scopeTag}
                           </span>
                         </div>
                         <p className="text-sm text-slate-200 mt-1 leading-relaxed">
@@ -665,12 +681,12 @@ export default function PlayerDashboard({
                       <h3 className="font-bold text-base text-white pr-4 flex flex-col group-hover:text-pink-400 transition-colors">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span>{mission.title}</span>
-                          {mission.targetPlayerId && (
+                          {mission.targetPlayerId !== null && (
                             <span className="text-[9px] bg-purple-500/20 text-purple-300 border border-purple-500/20 px-2 py-0.5 rounded uppercase font-bold">
                               Específica
                             </span>
                           )}
-                          {mission.targetSquadId && (
+                          {mission.targetSquadId !== null && (
                             <span className="text-[9px] bg-blue-500/20 text-blue-300 border border-blue-500/20 px-2 py-0.5 rounded uppercase font-bold">
                               Esquadrão
                             </span>
@@ -724,17 +740,17 @@ export default function PlayerDashboard({
           </div>
         )}
 
-        {/* TAB 3: BLACK MARKET COM VALIDAÇÃO DE SQUAD E ESTOQUE VISÍVEL */}
+        {/* TAB 3: BLACK MARKET */}
         {activeTab === "mercado" && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {shopItems
                 .filter((i) => {
                   const tPlayerId = i.targetPlayerId;
-                  const tSquadId = (i as any).targetSquadId;
+                  const tSquadId = i.targetSquadId;
                   return (tPlayerId === null && !tSquadId) || 
                          tPlayerId === player.id || 
-                         (tSquadId && mySquads.includes(tSquadId));
+                         (tSquadId !== null && mySquads.includes(tSquadId));
                 })
                 .map((item) => {
                   const hasSP = player.spBalance >= item.cost;
