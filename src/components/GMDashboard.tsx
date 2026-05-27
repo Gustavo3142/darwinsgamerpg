@@ -100,9 +100,15 @@ export default function GMDashboard({
   const [newConquistaDesc, setNewConquistaDesc] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const [missionFilter, setMissionFilter] = useState("todas");
-  const [shopFilter, setShopFilter] = useState("todas");
-  const [notifFilter, setNotifFilter] = useState("todas");
+  // Estados de Filtros Padronizados em 2 Níveis
+  const [missionFilterType, setMissionFilterType] = useState("todas");
+  const [missionFilterTargetId, setMissionFilterTargetId] = useState("");
+
+  const [shopFilterType, setShopFilterType] = useState("todas");
+  const [shopFilterTargetId, setShopFilterTargetId] = useState("");
+
+  const [notifFilterType, setNotifFilterType] = useState("todas");
+  const [notifFilterTargetId, setNotifFilterTargetId] = useState("");
 
   const [newConquistaRarity, setNewConquistaRarity] = useState("comum");
   const [removeQtyState, setRemoveQtyState] = useState<{ [key: number]: string }>({});
@@ -174,7 +180,7 @@ export default function GMDashboard({
   const [shopCost, setShopCost] = useState("100");
   const [shopStock, setShopStock] = useState("5");
 
-  // Notification State
+  // Notification Creation State
   const [notifMsg, setNotifMsg] = useState("");
   const [notifType, setNotifType] = useState<"info" | "alert" | "success">("info");
   const [notifVisibilityType, setNotifVisibilityType] = useState("geral");
@@ -1380,7 +1386,7 @@ export default function GMDashboard({
         </div>
       )}
 
-      {/* VIEW: FORNECEDOR COM FILTRO MULTI-PRIVILÉGIOS */}
+      {/* VIEW: FORNECEDOR COM FILTRO MULTI-NÍVEL PADRONIZADO */}
       {gmTab === "fornecedor" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="neon-card p-6 h-fit border-purple-500/30">
@@ -1465,7 +1471,11 @@ export default function GMDashboard({
                 </label>
                 <select
                   value={shopVisibilityType}
-                  onChange={(e) => setShopVisibilityType(e.target.value)}
+                  onChange={(e) => {
+                    setShopVisibilityType(e.target.value);
+                    setShopTargetPlayerId(players[0]?.id?.toString() || "");
+                    setShopTargetSquadId(squads[0]?.id?.toString() || "");
+                  }}
                   className="gm-input mt-1 text-slate-300"
                 >
                   <option value="geral">Mercado Público (Todos)</option>
@@ -1520,39 +1530,78 @@ export default function GMDashboard({
           </div>
 
           <div className="lg:col-span-2 space-y-4 animate-fade-in">
-            <div className="flex justify-between items-center border-b border-purple-500/20 pb-2 mb-4">
+            <div className="flex justify-between items-center border-b border-purple-500/20 pb-2 mb-4 flex-wrap gap-2">
               <h2 className="text-lg font-bold text-slate-200 uppercase tracking-widest m-0 border-none pb-0">
                 Catálogo Ativo no Mercado Negro
               </h2>
-              <select
-                value={shopFilter}
-                onChange={(e) => setShopFilter(e.target.value)}
-                className="gm-input !w-auto !py-1 !text-xs text-purple-400 font-bold border-purple-500/30"
-              >
-                <option value="todas">Todos</option>
-                <option value="geral">Gerais (Públicos)</option>
-                <option value="esquadrao">Esquadrões</option>
-                <option value="especifica">Individuais</option>
-              </select>
+              <div className="flex gap-2 min-w-0">
+                <select
+                  value={shopFilterType}
+                  onChange={(e) => {
+                    setShopFilterType(e.target.value);
+                    setShopFilterTargetId("");
+                  }}
+                  className="gm-input !w-auto !py-1 !text-xs text-purple-400 font-bold border-purple-500/30"
+                >
+                  <option value="todas">Todos</option>
+                  <option value="geral">Gerais (Públicos)</option>
+                  <option value="esquadrao">Por Esquadrão</option>
+                  <option value="especifica">Individuais</option>
+                </select>
+
+                {shopFilterType === "esquadrao" && (
+                  <select
+                    value={shopFilterTargetId}
+                    onChange={(e) => setShopFilterTargetId(e.target.value)}
+                    className="gm-input !w-auto !py-1 !text-xs text-blue-400 font-bold border-blue-500/30 animate-fade-in"
+                  >
+                    <option value="">-- Qual Esquadrão? --</option>
+                    {squads.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                )}
+
+                {shopFilterType === "especifica" && (
+                  <select
+                    value={shopFilterTargetId}
+                    onChange={(e) => setShopFilterTargetId(e.target.value)}
+                    className="gm-input !w-auto !py-1 !text-xs text-purple-400 font-bold border-purple-500/30 animate-fade-in"
+                  >
+                    <option value="">-- Qual Sujeito? --</option>
+                    {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                )}
+              </div>
             </div>
             
             {shopItems.filter(i => {
-              if (shopFilter === "geral") return i.targetPlayerId === null && !i.targetSquadId;
-              if (shopFilter === "esquadrao") return i.targetSquadId != null;
-              if (shopFilter === "especifica") return i.targetPlayerId !== null;
+              if (shopFilterType === "geral") return i.targetPlayerId === null && !i.targetSquadId;
+              if (shopFilterType === "esquadrao") {
+                if (shopFilterTargetId) return i.targetSquadId === Number(shopFilterTargetId);
+                return i.targetSquadId != null;
+              }
+              if (shopFilterType === "especifica") {
+                if (shopFilterTargetId) return i.targetPlayerId === Number(shopFilterTargetId);
+                return i.targetPlayerId !== null;
+              }
               return true;
             }).length === 0 && (
               <p className="text-slate-500 italic p-8 text-center border border-dashed border-zinc-800 rounded">
-                Nenhum item encontrado neste filtro.
+                Nenhum item catalogado correspondente aos filtros.
               </p>
             )}
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {shopItems
                 .filter(i => {
-                  if (shopFilter === "geral") return i.targetPlayerId === null && !i.targetSquadId;
-                  if (shopFilter === "esquadrao") return i.targetSquadId != null;
-                  if (shopFilter === "especifica") return i.targetPlayerId !== null;
+                  if (shopFilterType === "geral") return i.targetPlayerId === null && !i.targetSquadId;
+                  if (shopFilterType === "esquadrao") {
+                    if (shopFilterTargetId) return i.targetSquadId === Number(shopFilterTargetId);
+                    return i.targetSquadId != null;
+                  }
+                  if (shopFilterType === "especifica") {
+                    if (shopFilterTargetId) return i.targetPlayerId === Number(shopFilterTargetId);
+                    return i.targetPlayerId !== null;
+                  }
                   return true;
                 })
                 .map((item) => {
@@ -1575,7 +1624,7 @@ export default function GMDashboard({
                     <div>
                       <div className="flex justify-between items-start mb-1.5">
                         <h3 className={`font-bold text-lg uppercase ${titleColor}`}>{item.name}</h3>
-                        <div className="flex gap-1.5">
+                        <div className="flex gap-1.5 flex-wrap justify-end">
                           {item.targetPlayerId && (
                             <span className="text-[9px] bg-purple-900/50 text-purple-300 px-2 py-0.5 rounded uppercase tracking-widest border border-purple-500/30 font-bold">
                               Alvo: {players.find(p => p.id === item.targetPlayerId)?.name}
@@ -1883,7 +1932,7 @@ export default function GMDashboard({
               <select
                 value={degradeTargetType}
                 onChange={(e) => {
-                  setDegradeTargetType(e.target.value); // BUG CORRIGIDO AQUI
+                  setDegradeTargetType(e.target.value); 
                   setDegradePlayerId(players[0]?.id?.toString() || "");
                   setDegradeSquadId(squads[0]?.id?.toString() || "");
                 }}
@@ -2000,7 +2049,7 @@ export default function GMDashboard({
         </div>
       )}
 
-      {/* VIEW: DIRECTIVES & CONTRACTS PUBLICATION */}
+      {/* VIEW: DIRECTIVES & CONTRACTS PUBLICATION COM FILTRO MULTI-NÍVEL PADRONIZADO */}
       {gmTab === "missoes" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="space-y-4">
@@ -2079,7 +2128,11 @@ export default function GMDashboard({
                   </label>
                   <select
                     value={mType}
-                    onChange={(e) => setMType(e.target.value)}
+                    onChange={(e) => {
+                      setMType(e.target.value);
+                      setMTargetId(players[0]?.id?.toString() || "");
+                      setMTargetSquadId(squads[0]?.id?.toString() || "");
+                    }}
                     className="gm-input mt-1 text-slate-300"
                   >
                     <option value="geral">Público Geral (Pra Todos)</option>
@@ -2161,26 +2214,59 @@ export default function GMDashboard({
           </div>
 
           <div className="lg:col-span-2 space-y-4">
-            <div className="flex justify-between items-center border-b border-cyan-500/20 pb-2 mb-4">
+            <div className="flex justify-between items-center border-b border-cyan-500/20 pb-2 mb-4 flex-wrap gap-2">
               <h2 className="text-lg font-bold text-cyan-500 uppercase tracking-widest m-0 border-none pb-0">
                 Diretrizes Ativas no Servidor
               </h2>
-              <select
-                value={missionFilter}
-                onChange={(e) => setMissionFilter(e.target.value)}
-                className="gm-input !w-auto !py-1 !text-xs text-cyan-400 font-bold border-cyan-500/30"
-              >
-                <option value="todas">Todas</option>
-                <option value="geral">Gerais (Públicas)</option>
-                <option value="esquadrao">Esquadrões</option>
-                <option value="especifica">Individuais</option>
-              </select>
+              <div className="flex gap-2 min-w-0">
+                <select
+                  value={missionFilterType}
+                  onChange={(e) => {
+                    setMissionFilterType(e.target.value);
+                    setMissionFilterTargetId("");
+                  }}
+                  className="gm-input !w-auto !py-1 !text-xs text-cyan-400 font-bold border-cyan-500/30"
+                >
+                  <option value="todas">Todas</option>
+                  <option value="geral">Gerais (Públicas)</option>
+                  <option value="esquadrao">Por Esquadrão</option>
+                  <option value="especifica">Individuais</option>
+                </select>
+
+                {missionFilterType === "esquadrao" && (
+                  <select
+                    value={missionFilterTargetId}
+                    onChange={(e) => setMissionFilterTargetId(e.target.value)}
+                    className="gm-input !w-auto !py-1 !text-xs text-blue-400 font-bold border-blue-500/30 animate-fade-in"
+                  >
+                    <option value="">-- Qual Esquadrão? --</option>
+                    {squads.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                )}
+
+                {missionFilterType === "especifica" && (
+                  <select
+                    value={missionFilterTargetId}
+                    onChange={(e) => setMissionFilterTargetId(e.target.value)}
+                    className="gm-input !w-auto !py-1 !text-xs text-purple-400 font-bold border-purple-500/30 animate-fade-in"
+                  >
+                    <option value="">-- Qual Sujeito? --</option>
+                    {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                )}
+              </div>
             </div>
             
             {missions.filter(m => {
-              if (missionFilter === "geral") return m.targetPlayerId === null && m.targetSquadId === null;
-              if (missionFilter === "esquadrao") return m.targetSquadId !== null;
-              if (missionFilter === "especifica") return m.targetPlayerId !== null;
+              if (missionFilterType === "geral") return m.targetPlayerId === null && m.targetSquadId === null;
+              if (missionFilterType === "esquadrao") {
+                if (missionFilterTargetId) return m.targetSquadId === Number(missionFilterTargetId);
+                return m.targetSquadId !== null;
+              }
+              if (missionFilterType === "especifica") {
+                if (missionFilterTargetId) return m.targetPlayerId === Number(missionFilterTargetId);
+                return m.targetPlayerId !== null;
+              }
               return true; 
             }).length === 0 && (
               <p className="text-slate-500 italic p-8 text-center border border-dashed border-zinc-800 rounded">
@@ -2190,9 +2276,15 @@ export default function GMDashboard({
 
             {missions
               .filter(m => {
-                if (missionFilter === "geral") return m.targetPlayerId === null && m.targetSquadId === null;
-                if (missionFilter === "esquadrao") return m.targetSquadId !== null;
-                if (missionFilter === "especifica") return m.targetPlayerId !== null;
+                if (missionFilterType === "geral") return m.targetPlayerId === null && m.targetSquadId === null;
+                if (missionFilterType === "esquadrao") {
+                  if (missionFilterTargetId) return m.targetSquadId === Number(missionFilterTargetId);
+                  return m.targetSquadId !== null;
+                }
+                if (missionFilterType === "especifica") {
+                  if (missionFilterTargetId) return m.targetPlayerId === Number(missionFilterTargetId);
+                  return m.targetPlayerId !== null;
+                }
                 return true; 
               })
               .map((m) => {
@@ -2287,7 +2379,124 @@ export default function GMDashboard({
         </div>
       )}
 
-      {/* VIEW: TRANSMISSÕES (NOTIFICAÇÕES) */}
+      {/* VIEW: REGISTER NEW OPERATOR - RESTAURADO TOTALMENTE */}
+      {gmTab === "cadastro" && (
+        <div className="neon-card p-6 md:p-8 space-y-6 max-w-3xl mx-auto bg-zinc-900/50 animate-fade-in border-pink-500/30 shadow-2xl">
+          <h2 className="text-xl font-bold text-pink-500 uppercase tracking-widest border-b border-pink-500/20 pb-2 mb-6">
+            Cadastrar Novo Operador no Servidor
+          </h2>
+          <form onSubmit={handleRegisterPlayer} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-xs uppercase text-slate-400 font-bold mb-1">
+                  Nome Completo
+                </label>
+                <input
+                  required
+                  type="text"
+                  value={regName}
+                  onChange={(e) => setRegName(e.target.value)}
+                  className="gm-input text-slate-200"
+                  placeholder="Ex: Gustavo Bach"
+                />
+              </div>
+              <div>
+                <label className="block text-xs uppercase text-slate-400 font-bold mb-1">
+                  E-mail de Cadastro
+                </label>
+                <input
+                  required
+                  type="email"
+                  value={regEmail}
+                  onChange={(e) => setRegEmail(e.target.value)}
+                  className="gm-input text-slate-200"
+                  placeholder="usuario@dominio.com"
+                />
+              </div>
+              <div>
+                <label className="block text-xs uppercase text-slate-400 font-bold mb-1">
+                  Sigla ID (Ex: J1)
+                </label>
+                <input
+                  required
+                  type="text"
+                  value={regSigla}
+                  onChange={(e) => setRegSigla(e.target.value)}
+                  className="gm-input text-slate-200"
+                  placeholder="Ex: G1"
+                />
+              </div>
+              <div>
+                <label className="block text-xs uppercase text-pink-400 font-bold mb-1">
+                  Senha Provisória
+                </label>
+                <input
+                  required
+                  type="password"
+                  value={regPassword}
+                  onChange={(e) => setRegPassword(e.target.value)}
+                  className="gm-input border-pink-500/50 text-slate-200 font-sans"
+                  placeholder="••••••••"
+                />
+              </div>
+            </div>
+
+            <h3 className="text-cyan-400 font-bold uppercase tracking-widest text-sm border-b border-cyan-500/20 pb-1.5 mt-6 mb-4">
+              Dados do Operador Cyborg
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label className="block text-xs uppercase text-slate-400 font-bold mb-1">
+                  Apelido Cyborg
+                </label>
+                <input
+                  required
+                  type="text"
+                  value={regCharName}
+                  onChange={(e) => setRegCharName(e.target.value)}
+                  className="gm-input text-slate-200"
+                  placeholder="Ex: Kael'thas Neo"
+                />
+              </div>
+              <div>
+                <label className="block text-xs uppercase text-slate-400 font-bold mb-1">
+                  Classe
+                </label>
+                <input
+                  required
+                  type="text"
+                  value={regClass}
+                  onChange={(e) => setRegClass(e.target.value)}
+                  className="gm-input text-slate-200"
+                  placeholder="Ex: Cyber Ninja"
+                />
+              </div>
+              <div>
+                <label className="block text-xs uppercase text-slate-400 font-bold mb-1">
+                  Subclasse
+                </label>
+                <input
+                  required
+                  type="text"
+                  value={regSubClass}
+                  onChange={(e) => setRegSubClass(e.target.value)}
+                  className="gm-input text-slate-200"
+                  placeholder="Ex: Netrunner"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-pink-600 hover:bg-pink-500 text-white font-bold py-3 mt-4 rounded uppercase tracking-widest text-sm transition-all duration-300 shadow-[0_0_15px_rgba(236,72,153,0.3)] cursor-pointer"
+            >
+              Registrar Operador
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* VIEW: TRANSMISSÕES (NOTIFICAÇÕES) COM FILTRO MULTI-NÍVEL PADRONIZADO */}
       {gmTab === "transmissoes" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
           <div className="neon-card p-6 h-fit border-cyan-500/30">
@@ -2316,7 +2525,11 @@ export default function GMDashboard({
                 </label>
                 <select
                   value={notifVisibilityType}
-                  onChange={(e) => setNotifVisibilityType(e.target.value)}
+                  onChange={(e) => {
+                    setNotifVisibilityType(e.target.value);
+                    setNotifTargetPlayerId(players[0]?.id?.toString() || "");
+                    setNotifTargetSquadId(squads[0]?.id?.toString() || "");
+                  }}
                   className="gm-input mt-1 text-slate-300"
                 >
                   <option value="geral">Aviso Global (Todos)</option>
@@ -2384,26 +2597,59 @@ export default function GMDashboard({
           </div>
 
           <div className="lg:col-span-2 space-y-4 animate-fade-in">
-            <div className="flex justify-between items-center border-b border-zinc-800 pb-2 mb-4">
+            <div className="flex justify-between items-center border-b border-zinc-800 pb-2 mb-4 flex-wrap gap-2">
               <h2 className="text-lg font-bold text-slate-200 uppercase tracking-widest m-0 border-none pb-0">
                 Histórico de Transmissões
               </h2>
-              <select
-                value={notifFilter}
-                onChange={(e) => setNotifFilter(e.target.value)}
-                className="gm-input !w-auto !py-1 !text-xs text-cyan-400 font-bold border-cyan-500/30"
-              >
-                <option value="todas">Todas</option>
-                <option value="geral">Gerais (Públicas)</option>
-                <option value="esquadrao">Esquadrões</option>
-                <option value="especifica">Individuais</option>
-              </select>
+              <div className="flex gap-2 min-w-0">
+                <select
+                  value={notifFilterType}
+                  onChange={(e) => {
+                    setNotifFilterType(e.target.value);
+                    setNotifFilterTargetId("");
+                  }}
+                  className="gm-input !w-auto !py-1 !text-xs text-cyan-400 font-bold border-cyan-500/30"
+                >
+                  <option value="todas">Todas</option>
+                  <option value="geral">Gerais (Públicas)</option>
+                  <option value="esquadrao">Por Esquadrão</option>
+                  <option value="especifica">Individuais</option>
+                </select>
+
+                {notifFilterType === "esquadrao" && (
+                  <select
+                    value={notifFilterTargetId}
+                    onChange={(e) => setNotifFilterTargetId(e.target.value)}
+                    className="gm-input !w-auto !py-1 !text-xs text-blue-400 font-bold border-blue-500/30 animate-fade-in"
+                  >
+                    <option value="">-- Qual Esquadrão? --</option>
+                    {squads.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                )}
+
+                {notifFilterType === "especifica" && (
+                  <select
+                    value={notifFilterTargetId}
+                    onChange={(e) => setNotifFilterTargetId(e.target.value)}
+                    className="gm-input !w-auto !py-1 !text-xs text-purple-400 font-bold border-purple-500/30 animate-fade-in"
+                  >
+                    <option value="">-- Qual Sujeito? --</option>
+                    {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                )}
+              </div>
             </div>
             
             {notifications.filter(n => {
-              if (notifFilter === "geral") return n.targetPlayerId === null && n.targetSquadId === null;
-              if (notifFilter === "esquadrao") return n.targetSquadId !== null;
-              if (notifFilter === "especifica") return n.targetPlayerId !== null;
+              if (notifFilterType === "geral") return n.targetPlayerId === null && n.targetSquadId === null;
+              if (notifFilterType === "esquadrao") {
+                if (notifFilterTargetId) return n.targetSquadId === Number(notifFilterTargetId);
+                return n.targetSquadId !== null;
+              }
+              if (notifFilterType === "especifica") {
+                if (notifFilterTargetId) return n.targetPlayerId === Number(notifFilterTargetId);
+                return n.targetPlayerId !== null;
+              }
               return true;
             }).length === 0 && (
               <p className="text-slate-500 italic p-8 text-center border border-dashed border-zinc-800 rounded">
@@ -2414,9 +2660,15 @@ export default function GMDashboard({
             <div className="space-y-3">
               {notifications
                 .filter(n => {
-                  if (notifFilter === "geral") return n.targetPlayerId === null && n.targetSquadId === null;
-                  if (notifFilter === "esquadrao") return n.targetSquadId !== null;
-                  if (notifFilter === "especifica") return n.targetPlayerId !== null;
+                  if (notifFilterType === "geral") return n.targetPlayerId === null && n.targetSquadId === null;
+                  if (notifFilterType === "esquadrao") {
+                    if (notifFilterTargetId) return n.targetSquadId === Number(notifFilterTargetId);
+                    return n.targetSquadId !== null;
+                  }
+                  if (notifFilterType === "especifica") {
+                    if (notifFilterTargetId) return n.targetPlayerId === Number(notifFilterTargetId);
+                    return n.targetPlayerId !== null;
+                  }
                   return true;
                 })
                 .map(notif => {

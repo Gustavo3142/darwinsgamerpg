@@ -20,7 +20,7 @@ import {
   MessageSquare,
   AlertTriangle
 } from "lucide-react";
-import { Player, Mission, ShopItem, Notification, LogEntry } from "../types";
+import { Player, Mission, ShopItem, Notification } from "../types";
 import { generateUniqueId } from "../utils/id";
 
 const attributeIconsMap: { [key: string]: React.ComponentType<any> } = {
@@ -47,9 +47,8 @@ interface PlayerDashboardProps {
   squads: Array<{ id: number; name: string; members: number[] }>;
   shopItems: ShopItem[];
   setShopItems: React.Dispatch<React.SetStateAction<ShopItem[]>>;
-  logs: LogEntry[]; // <-- Adicionado para resolver o CRASH
-  notifications: Notification[];
-  setNotifications: React.Dispatch<React.SetStateAction<Notification[]>>;
+  notifications: Notification[]; // Propriedade adicionada
+  setNotifications: React.Dispatch<React.SetStateAction<Notification[]>>; // Propriedade adicionada
   addLog: (playerId: number, action: string, desc: string, xp?: number, sp?: number) => void;
   geminiKey: string;
   showToast: (msg: string, type?: "success" | "error") => void;
@@ -64,7 +63,6 @@ export default function PlayerDashboard({
   squads,
   shopItems,
   setShopItems,
-  logs,
   notifications,
   setNotifications,
   addLog,
@@ -76,7 +74,7 @@ export default function PlayerDashboard({
   const [analysis, setAnalysis] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [inspectedPlayer, setInspectedPlayer] = useState<Player | null>(null);
-  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const [showNotifPanel, setShowNotifPanel] = useState(false); // Controle do painel de avisos
 
   if (!player) return null;
 
@@ -89,13 +87,12 @@ export default function PlayerDashboard({
       (m.targetSquadId !== null && mySquads.includes(m.targetSquadId))
   );
 
-  // Derivações de Notificações com blindagem de arrays (n.readBy || []) e suporte a Esquadrões
-  const safeNotifications = notifications || [];
-  const myNotifications = safeNotifications
+  // Filtragem de notificações pertinentes ao operador (Global, Direta ou por Esquadrão)
+  const myNotifications = (notifications || [])
     .filter(n => 
-      (n.targetPlayerId === null && n.targetSquadId === null) || // Globais
-      n.targetPlayerId === player.id || // Individuais
-      (n.targetSquadId !== null && mySquads.includes(n.targetSquadId)) // Esquadrões
+      (n.targetPlayerId === null && n.targetSquadId === null) || 
+      n.targetPlayerId === player.id || 
+      (n.targetSquadId !== null && mySquads.includes(n.targetSquadId))
     )
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   
@@ -104,7 +101,7 @@ export default function PlayerDashboard({
   const handleOpenNotifications = () => {
     setShowNotifPanel(true);
     let updated = false;
-    const newNotifs = safeNotifications.map(n => {
+    const newNotifs = (notifications || []).map(n => {
       const isMine = (n.targetPlayerId === null && n.targetSquadId === null) || n.targetPlayerId === player.id || (n.targetSquadId !== null && mySquads.includes(n.targetSquadId));
       const hasRead = (n.readBy || []).includes(player.id);
       
@@ -241,8 +238,8 @@ export default function PlayerDashboard({
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-8 relative">
-
-      {/* Notifications Modal */}
+      
+      {/* Notifications Modal Overlay */}
       {showNotifPanel && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="neon-card hud-corner p-6 md:p-8 w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col border-cyan-500/50 shadow-[0_0_30px_rgba(6,182,212,0.2)]">
@@ -434,7 +431,7 @@ export default function PlayerDashboard({
         <div>
           <h1 className="text-3xl md:text-4xl font-bold neon-text-primary uppercase tracking-tight flex items-center gap-3">
             {player.name}
-            {/* Bell Button Header */}
+            {/* Botão do Sininho */}
             <button
               onClick={handleOpenNotifications}
               className="relative p-2 bg-zinc-900 border border-zinc-800 hover:border-cyan-500 rounded-full transition-colors cursor-pointer group"
@@ -537,7 +534,7 @@ export default function PlayerDashboard({
           Mercado Negro
         </button>
         <button
-          onClick={() => setActiveTab("conquistas")}
+          onClick={() => { setActiveTab("conquistas"); }}
           className={`px-4 py-2 font-bold uppercase tracking-widest text-xs transition-all border-b-2 whitespace-nowrap cursor-pointer ${
             activeTab === "conquistas"
               ? "border-pink-500 text-pink-500 bg-pink-500/10"
@@ -681,12 +678,12 @@ export default function PlayerDashboard({
                       <h3 className="font-bold text-base text-white pr-4 flex flex-col group-hover:text-pink-400 transition-colors">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span>{mission.title}</span>
-                          {mission.targetPlayerId !== null && (
+                          {mission.targetPlayerId && (
                             <span className="text-[9px] bg-purple-500/20 text-purple-300 border border-purple-500/20 px-2 py-0.5 rounded uppercase font-bold">
                               Específica
                             </span>
                           )}
-                          {mission.targetSquadId !== null && (
+                          {mission.targetSquadId && (
                             <span className="text-[9px] bg-blue-500/20 text-blue-300 border border-blue-500/20 px-2 py-0.5 rounded uppercase font-bold">
                               Esquadrão
                             </span>
@@ -747,10 +744,10 @@ export default function PlayerDashboard({
               {shopItems
                 .filter((i) => {
                   const tPlayerId = i.targetPlayerId;
-                  const tSquadId = i.targetSquadId;
+                  const tSquadId = (i as any).targetSquadId;
                   return (tPlayerId === null && !tSquadId) || 
                          tPlayerId === player.id || 
-                         (tSquadId !== null && mySquads.includes(tSquadId));
+                         (tSquadId && mySquads.includes(tSquadId));
                 })
                 .map((item) => {
                   const hasSP = player.spBalance >= item.cost;
