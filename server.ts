@@ -120,12 +120,15 @@ const defaultDB: RPGDB = {
   gms: [{ user: "admin", pass: "admin" }] // Contingência padrão estruturada
 };
 
+let hasSyncedWithCloud = false;
+
 // Helper: load local db
 function loadLocalDB(): RPGDB {
   try {
     if (fs.existsSync(DB_FILE)) {
       const data = fs.readFileSync(DB_FILE, "utf-8");
       const parsed = JSON.parse(data);
+      hasSyncedWithCloud = true;
       return {
         players: parsed.players || initialPlayers,
         missions: parsed.missions || initialMissions,
@@ -164,7 +167,7 @@ app.get("/api/mainframe", async (req, res) => {
   try {
     // Attempt to pull from GAS sheet for multi-user sync
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout max for quick response
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout max for quick response
 
     const response = await fetch(GAS_URL, { signal: controller.signal });
     clearTimeout(timeoutId);
@@ -202,10 +205,14 @@ app.get("/api/mainframe", async (req, res) => {
         activeDB.gms = [{ user: "admin", pass: "admin" }];
       }
       
+      hasSyncedWithCloud = true;
       saveLocalDB(activeDB);
     }
   } catch (err) {
     console.log("GAS mainframe sync timed out or unreachable. Serving local db state instead.");
+    if (!hasSyncedWithCloud) {
+      return res.status(503).json({ error: "Mainframe em inicialização ou nuvem indisponível. Aguarde." });
+    }
   }
 
   res.json({
@@ -291,7 +298,7 @@ Subclasse: ${player.subClass}
 Nível: ${player.level}
 Atributos Biométricos: ${JSON.stringify(player.attributes)}
 
-Não use saudoções amigáveis ou encerramento, seja o sistema mainframe avaliando. Responda em português brasileiro.`;
+Não use saudações amigáveis ou encerramento, seja o sistema mainframe avaliando. Responda em português brasileiro.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3.5-flash",

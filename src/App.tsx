@@ -147,16 +147,11 @@ export default function App() {
         isDataLoaded.current = true;
 
         if (!silent) showToast("Mainframe Sincronizado!", "success");
+      } else {
+        throw new Error("Nuvem indisponível ou em inicialização.");
       }
     } catch (e) {
-      if (!silent) showToast("Mapeamento off. Ativando sub-rede local.", "error");
-      // Load fallback seeds if we have empty arrays and can't pull
-      if (players.length === 0) {
-        setPlayers(defaultPlayers);
-        setSquads(defaultSquads);
-        setShopItems(defaultShopItems);
-      }
-      isDataLoaded.current = true;
+      if (!silent) showToast("Sincronia falhou. Clique em atualizar para tentar novamente.", "error");
     } finally {
       if (!silent) setIsSyncing(false);
     }
