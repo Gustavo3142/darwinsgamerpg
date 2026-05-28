@@ -88,17 +88,40 @@ function saveLocalDB(data: RPGDB) {
 
 // Global in-memory storage synced with local file
 let activeDB = loadLocalDB();
-
+let cloudSyncCompleted = false;
 app.use(express.json({ limit: "50mb" }));
 
 // Google Web App GAS Sync API Proxy URL
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz4240i9n-_ncrsfDXUISP5CCGrKwQ8zvdo6jeM-JuQmhj5tTOkeBcrpWh1WOI5meGyeA/exec";
 
-// 1. API: Get Mainframe Data (Versão com Fusão Inteligente Antiperda)
+async function ensureCloudSync() {
+  if (cloudSyncCompleted) return true;
+  try {
+    const response = await fetch(GAS_URL);
+    if (response.ok) {
+      const cloudDatabase: any = await response.json();
+      if (cloudDatabase.players) activeDB.players = JSON.parse(cloudDatabase.players);
+      if (cloudDatabase.missions) activeDB.missions = JSON.parse(cloudDatabase.missions);
+      if (cloudDatabase.dg_groups) activeDB.squads = JSON.parse(cloudDatabase.dg_groups);
+      if (cloudDatabase.dg_shop) activeDB.shopItems = JSON.parse(cloudDatabase.dg_shop);
+      if (cloudDatabase.dg_notifications) activeDB.notifications = JSON.parse(cloudDatabase.dg_notifications);
+      if (cloudDatabase.ai_key) activeDB.geminiKey = cloudDatabase.ai_key;
+      if (cloudDatabase.logs) activeDB.logs = JSON.parse(cloudDatabase.logs);
+      
+      cloudSyncCompleted = true;
+      saveLocalDB(activeDB);
+      return true;
+    }
+  } catch (err) {
+    console.error("Erro na sincronização de emergência (Cold Start):", err);
+  }
+  return false;
+}
+// 1. API: Get Mainframe Data
 app.get("/api/mainframe", async (req, res) => {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout max
+    const timeoutId = setTimeout(() => controller.abort(), 6000); 
 
     const response = await fetch(GAS_URL, { signal: controller.signal });
     clearTimeout(timeoutId);
@@ -113,15 +136,11 @@ app.get("/api/mainframe", async (req, res) => {
       if (cloudDatabase.dg_notifications) activeDB.notifications = JSON.parse(cloudDatabase.dg_notifications);
       if (cloudDatabase.ai_key) activeDB.geminiKey = cloudDatabase.ai_key;
       
-      // BLINDAGEM DO GET: Em vez de sobrescrever, mescla os logs da nuvem com os locais
       if (cloudDatabase.logs) {
         const cloudLogs = JSON.parse(cloudDatabase.logs);
         const incomingLogs = Array.isArray(cloudLogs) ? cloudLogs : [cloudLogs];
         
-        // Mapeia IDs locais para evitar duplicatas
         const localLogIds = new Set(activeDB.logs.map((l) => l.id));
-        
-        // Filtra apenas o que a nuvem tem de novo que o servidor local não conhece
         const uniqueCloudLogs = incomingLogs.filter((l) => !localLogIds.has(l.id));
 
         if (uniqueCloudLogs.length > 0) {
@@ -131,7 +150,6 @@ app.get("/api/mainframe", async (req, res) => {
         }
       }
       
-      // Varredura de chaves dinâmicas de GMs
       const temporaryGmsList: { user: string; pass: string }[] = [];
       Object.keys(cloudDatabase).forEach((cloudKey) => {
         if (cloudKey.startsWith("gm_user_")) {
@@ -152,13 +170,13 @@ app.get("/api/mainframe", async (req, res) => {
         activeDB.gms = [{ user: "admin", pass: "admin" }];
       }
       
+      cloudSyncCompleted = true; // Marca que o servidor local está em sincronia com a nuvem
       saveLocalDB(activeDB);
     }
   } catch (err) {
     console.log("GAS mainframe sync timed out or unreachable. Serving local db state instead.");
   }
 
-  // Entrega o estado unificado e protegido contra perdas por lag
   res.json({
     players: activeDB.players,
     missions: activeDB.missions,
@@ -171,18 +189,20 @@ app.get("/api/mainframe", async (req, res) => {
   });
 });
 
-// 2. API: Push Mainframe Data (Versão com Append Inteligente para Logs)
+// 2. API: Push Mainframe Data
 app.post("/api/mainframe", async (req, res) => {
   const { key, value } = req.body;
   if (!key || value === undefined) {
     return res.status(400).json({ error: "Missing key or value fields" });
   }
 
+  // TRAVA ABSOLUTA: Impede escritas baseadas em memórias zeradas de Cold Start
+  await ensureCloudSync();
+
   try {
     const parsedValue = typeof value === "string" ? JSON.parse(value) : value;
     let valueToSendToCloud = value;
 
-    // Update active memory
     if (key === "players") activeDB.players = parsedValue;
     else if (key === "missions") activeDB.missions = parsedValue;
     else if (key === "dg_groups") activeDB.squads = parsedValue;
@@ -191,40 +211,26 @@ app.post("/api/mainframe", async (req, res) => {
     else if (key === "gms") activeDB.gms = parsedValue;
     else if (key === "dg_notifications") activeDB.notifications = parsedValue;
     else if (key === "logs") {
-      // INTERCEPTADOR DE APPEND: Evita que estados antigos de jogadores apaguem logs novos do GM
       const incomingLogs = Array.isArray(parsedValue) ? parsedValue : [parsedValue];
-      
-      // Mapeia os IDs dos logs que o servidor já possui gravados com segurança
       const localLogIds = new Set(activeDB.logs.map((l) => l.id));
-      
-      // Filtra apenas os logs entrantes que NÃO existem no banco de dados do servidor
       const genuinelyNewLogs = incomingLogs.filter((l) => !localLogIds.has(l.id));
 
       if (genuinelyNewLogs.length > 0) {
-        // Junta os novos registros no topo do array local e reordena por ordem cronológica decrescente
         activeDB.logs = [...genuinelyNewLogs, ...activeDB.logs].sort(
           (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
         );
       }
       
-      // Força o pacote enviado para o Google Sheets a conter o banco unificado e protegido
       valueToSendToCloud = JSON.stringify(activeDB.logs);
     }
 
-    // Grava o estado atualizado e protegido no arquivo local db.json
     saveLocalDB(activeDB);
 
-    // Repassa o pacote robusto assincronamente para o Google Apps Script
     fetch(GAS_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        key, 
-        value: typeof valueToSendToCloud === "string" ? valueToSendToCloud : JSON.stringify(valueToSendToCloud) 
-      }),
-    }).catch((err) => {
-      // Captura falhas de rede em background silenciosamente
-    });
+      body: JSON.stringify({ key, value: typeof valueToSendToCloud === "string" ? valueToSendToCloud : JSON.stringify(valueToSendToCloud) }),
+    }).catch((err) => {});
 
     res.json({ success: true });
   } catch (err) {
