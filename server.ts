@@ -156,7 +156,7 @@ app.get("/api/mainframe", async (req, res) => {
   });
 });
 
-// 2. API: Push Mainframe Data (supports incremental key savings)
+// 2. API: Push Mainframe Data (Versão com Append Inteligente para Logs)
 app.post("/api/mainframe", async (req, res) => {
   const { key, value } = req.body;
   if (!key || value === undefined) {
@@ -165,26 +165,50 @@ app.post("/api/mainframe", async (req, res) => {
 
   try {
     const parsedValue = typeof value === "string" ? JSON.parse(value) : value;
+    let valueToSendToCloud = value;
 
     // Update active memory
     if (key === "players") activeDB.players = parsedValue;
     else if (key === "missions") activeDB.missions = parsedValue;
     else if (key === "dg_groups") activeDB.squads = parsedValue;
     else if (key === "dg_shop") activeDB.shopItems = parsedValue;
-    else if (key === "logs") activeDB.logs = parsedValue;
-    else if (key === "dg_notifications") activeDB.notifications = parsedValue; // Escrita de notificações
     else if (key === "ai_key") activeDB.geminiKey = parsedValue;
     else if (key === "gms") activeDB.gms = parsedValue;
+    else if (key === "dg_notifications") activeDB.notifications = parsedValue;
+    else if (key === "logs") {
+      // INTERCEPTADOR DE APPEND: Evita que estados antigos de jogadores apaguem logs novos do GM
+      const incomingLogs = Array.isArray(parsedValue) ? parsedValue : [parsedValue];
+      
+      // Mapeia os IDs dos logs que o servidor já possui gravados com segurança
+      const localLogIds = new Set(activeDB.logs.map((l) => l.id));
+      
+      // Filtra apenas os logs entrantes que NÃO existem no banco de dados do servidor
+      const genuinelyNewLogs = incomingLogs.filter((l) => !localLogIds.has(l.id));
 
+      if (genuinelyNewLogs.length > 0) {
+        // Junta os novos registros no topo do array local e reordena por ordem cronológica decrescente
+        activeDB.logs = [...genuinelyNewLogs, ...activeDB.logs].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+      }
+      
+      // Força o pacote enviado para o Google Sheets a conter o banco unificado e protegido
+      valueToSendToCloud = JSON.stringify(activeDB.logs);
+    }
+
+    // Grava o estado atualizado e protegido no arquivo local db.json
     saveLocalDB(activeDB);
 
-    // Proxy the POST to Google Apps Script asynchronously (without blocking response)
+    // Repassa o pacote robusto assincronamente para o Google Apps Script
     fetch(GAS_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key, value: typeof value === "string" ? value : JSON.stringify(value) }),
+      body: JSON.stringify({ 
+        key, 
+        value: typeof valueToSendToCloud === "string" ? valueToSendToCloud : JSON.stringify(valueToSendToCloud) 
+      }),
     }).catch((err) => {
-      // Intentionally capture background fetch failures silently
+      // Captura falhas de rede em background silenciosamente
     });
 
     res.json({ success: true });
