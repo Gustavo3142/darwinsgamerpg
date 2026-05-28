@@ -11,14 +11,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const DB_FILE = path.join(process.cwd(), "data", "db.json");
 
-// Ensure data folder exists
 if (!fs.existsSync(path.dirname(DB_FILE))) {
   fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
 }
 
-// Initial default state - Modelo removido do código conforme solicitado
 const initialPlayers: any[] = [];
-
 const initialMissions: any[] = [];
 const initialSquads = [{ id: 1, name: "Esquadrão Alpha", members: [1, 2] }];
 const initialShopItems = [
@@ -38,9 +35,9 @@ interface RPGDB {
   squads: any[];
   shopItems: any[];
   logs: any[];
-  notifications: any[]; // Adicionado para suporte a notificações
+  notifications: any[];
   geminiKey: string;
-  gms?: any[]; // Alterado para suportar múltiplos GMs sequenciais dinâmicos
+  gms?: any[];
 }
 
 const defaultDB: RPGDB = {
@@ -49,12 +46,11 @@ const defaultDB: RPGDB = {
   squads: initialSquads,
   shopItems: initialShopItems,
   logs: [],
-  notifications: [], // Inicializador padrão
+  notifications: [],
   geminiKey: "",
-  gms: [{ user: "admin", pass: "admin" }] // Contingência padrão estruturada
+  gms: [{ user: "admin", pass: "admin" }]
 };
 
-// Helper: load local db
 function loadLocalDB(): RPGDB {
   try {
     if (fs.existsSync(DB_FILE)) {
@@ -66,7 +62,7 @@ function loadLocalDB(): RPGDB {
         squads: parsed.squads || initialSquads,
         shopItems: parsed.shopItems || initialShopItems,
         logs: parsed.logs || [],
-        notifications: parsed.notifications || [], // Carregamento do estado local
+        notifications: parsed.notifications || [],
         geminiKey: parsed.geminiKey || "",
         gms: parsed.gms || [{ user: "admin", pass: "admin" }]
       };
@@ -77,7 +73,6 @@ function loadLocalDB(): RPGDB {
   return defaultDB;
 }
 
-// Helper: save local db
 function saveLocalDB(data: RPGDB) {
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), "utf-8");
@@ -86,46 +81,15 @@ function saveLocalDB(data: RPGDB) {
   }
 }
 
-// Global in-memory storage synced with local file
 let activeDB = loadLocalDB();
-let cloudSyncCompleted = false;
 app.use(express.json({ limit: "50mb" }));
 
-// Google Web App GAS Sync API Proxy URL
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz4240i9n-_ncrsfDXUISP5CCGrKwQ8zvdo6jeM-JuQmhj5tTOkeBcrpWh1WOI5meGyeA/exec";
 
-async function ensureCloudSync() {
-  if (cloudSyncCompleted) return true;
-  try {
-    const response = await fetch(GAS_URL);
-    if (response.ok) {
-      const cloudDatabase: any = await response.json();
-      if (cloudDatabase.players) activeDB.players = JSON.parse(cloudDatabase.players);
-      if (cloudDatabase.missions) activeDB.missions = JSON.parse(cloudDatabase.missions);
-      if (cloudDatabase.dg_groups) activeDB.squads = JSON.parse(cloudDatabase.dg_groups);
-      if (cloudDatabase.dg_shop) activeDB.shopItems = JSON.parse(cloudDatabase.dg_shop);
-      if (cloudDatabase.dg_notifications) activeDB.notifications = JSON.parse(cloudDatabase.dg_notifications);
-      if (cloudDatabase.ai_key) activeDB.geminiKey = cloudDatabase.ai_key;
-      if (cloudDatabase.logs) activeDB.logs = JSON.parse(cloudDatabase.logs);
-      
-      cloudSyncCompleted = true;
-      saveLocalDB(activeDB);
-      return true;
-    }
-  } catch (err) {
-    console.error("Erro na sincronização de emergência (Cold Start):", err);
-  }
-  return false;
-}
 // 1. API: Get Mainframe Data
 app.get("/api/mainframe", async (req, res) => {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000); 
-
-    const response = await fetch(GAS_URL, { signal: controller.signal });
-    clearTimeout(timeoutId);
-
+    const response = await fetch(GAS_URL);
     if (response.ok) {
       const cloudDatabase: any = await response.json();
       
@@ -139,15 +103,20 @@ app.get("/api/mainframe", async (req, res) => {
       if (cloudDatabase.logs) {
         const cloudLogs = JSON.parse(cloudDatabase.logs);
         const incomingLogs = Array.isArray(cloudLogs) ? cloudLogs : [cloudLogs];
+        const existingLogs = activeDB.logs || [];
         
-        const localLogIds = new Set(activeDB.logs.map((l) => l.id));
-        const uniqueCloudLogs = incomingLogs.filter((l) => !localLogIds.has(l.id));
-
-        if (uniqueCloudLogs.length > 0) {
-          activeDB.logs = [...uniqueCloudLogs, ...activeDB.logs].sort(
-            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-          );
-        }
+        // União simples de tabelas baseada em IDs para os Logs
+        const combined = [...incomingLogs, ...existingLogs];
+        const uniqueMap = new Map();
+        combined.forEach((log) => {
+          if (log && log.id && !uniqueMap.has(log.id)) {
+            uniqueMap.set(log.id, log);
+          }
+        });
+        
+        activeDB.logs = Array.from(uniqueMap.values()).sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
       }
       
       const temporaryGmsList: { user: string; pass: string }[] = [];
@@ -170,11 +139,10 @@ app.get("/api/mainframe", async (req, res) => {
         activeDB.gms = [{ user: "admin", pass: "admin" }];
       }
       
-      cloudSyncCompleted = true; // Marca que o servidor local está em sincronia com a nuvem
       saveLocalDB(activeDB);
     }
   } catch (err) {
-    console.log("GAS mainframe sync timed out or unreachable. Serving local db state instead.");
+    console.log("Erro de comunicação com a planilha. Entregando dados locais.");
   }
 
   res.json({
@@ -196,9 +164,6 @@ app.post("/api/mainframe", async (req, res) => {
     return res.status(400).json({ error: "Missing key or value fields" });
   }
 
-  // TRAVA ABSOLUTA: Impede escritas baseadas em memórias zeradas de Cold Start
-  await ensureCloudSync();
-
   try {
     const parsedValue = typeof value === "string" ? JSON.parse(value) : value;
     let valueToSendToCloud = value;
@@ -212,15 +177,20 @@ app.post("/api/mainframe", async (req, res) => {
     else if (key === "dg_notifications") activeDB.notifications = parsedValue;
     else if (key === "logs") {
       const incomingLogs = Array.isArray(parsedValue) ? parsedValue : [parsedValue];
-      const localLogIds = new Set(activeDB.logs.map((l) => l.id));
-      const genuinelyNewLogs = incomingLogs.filter((l) => !localLogIds.has(l.id));
-
-      if (genuinelyNewLogs.length > 0) {
-        activeDB.logs = [...genuinelyNewLogs, ...activeDB.logs].sort(
-          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-        );
-      }
+      const existingLogs = activeDB.logs || [];
       
+      // Concatenação e filtragem direta anti-duplicados por ID
+      const combined = [...incomingLogs, ...existingLogs];
+      const uniqueMap = new Map();
+      combined.forEach((log) => {
+        if (log && log.id && !uniqueMap.has(log.id)) {
+          uniqueMap.set(log.id, log);
+        }
+      });
+      
+      activeDB.logs = Array.from(uniqueMap.values()).sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
       valueToSendToCloud = JSON.stringify(activeDB.logs);
     }
 
@@ -230,129 +200,69 @@ app.post("/api/mainframe", async (req, res) => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key, value: typeof valueToSendToCloud === "string" ? valueToSendToCloud : JSON.stringify(valueToSendToCloud) }),
-    }).catch((err) => {});
+    }).catch(() => {});
 
     res.json({ success: true });
   } catch (err) {
-    console.error("Erro no processamento da gravação do mainframe:", err);
-    res.status(500).json({ error: "Erro ao processar dados no servidor." });
+    console.error("Erro de gravação no mainframe:", err);
+    res.status(500).json({ error: "Erro interno no servidor." });
   }
 });
 
-// Helper for Gemini AI client initialization
 function getGeminiClient(customKey?: string) {
   const key = customKey || process.env.GEMINI_API_KEY || activeDB.geminiKey;
   if (!key) {
-    throw new Error("API Key do Gemini indisponível. Cadastre na aba de Configurações do GM ou configure a variável GEMINI_API_KEY.");
+    throw new Error("API Key do Gemini indisponível.");
   }
   return new GoogleGenAI({
     apiKey: key,
-    httpOptions: {
-      headers: {
-        "User-Agent": "aistudio-build",
-      },
-    },
+    httpOptions: { headers: { "User-Agent": "aistudio-build" } },
   });
 }
 
-// 3. API: Gemini Profile Bio Scan / Evaluation
 app.post("/api/gemini/analyze", async (req, res) => {
   const { player, customKey } = req.body;
-  if (!player) {
-    return res.status(400).json({ error: "Missing player data for analysis" });
-  }
-
+  if (!player) return res.status(400).json({ error: "Missing data" });
   try {
     const ai = getGeminiClient(customKey);
-    const prompt = `Você é um sistema de Inteligência Artificial corporativa ultratecnológica e fria avaliando o perfil de um jogador.
-Escreva exatamente um parágrafo curto, persuasivo e impactante elogiando o principal ponto forte do jogador e apontando uma área de melhoria calculada taticamente. use termos cyberpunk, jargões hackers-corporativos e seja direto.
-
-Dados do sujeito:
-Nome: ${player.name}
-Classe: ${player.class}
-Subclasse: ${player.subClass}
-Nível: ${player.level}
-Atributos Biométricos: ${JSON.stringify(player.attributes)}
-
-Não use saudoções amigáveis ou encerramento, seja o sistema mainframe avaliando. Responda em português brasileiro.`;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-    });
-
+    const prompt = `Você é um sistema de Inteligência Artificial corporativa ultratecnológica e fria avaliando o perfil de um jogador. Escreva exatamente um parágrafo curto, persuasivo e impactante elogiando o principal ponto forte do jogador e apontando uma área de melhoria calculada taticamente. use termos cyberpunk, jargões hackers-corporativos e seja direto. Dados do sujeito: Nome: ${player.name} Classe: ${player.class} Subclasse: ${player.subClass} Nível: ${player.level} Atributos Biométricos: ${JSON.stringify(player.attributes)} Não use saudoções amigáveis ou encerramento, seja o sistema mainframe avaliando. Responda em português brasileiro.`;
+    const response = await ai.models.generateContent({ model: "gemini-3.5-flash", contents: prompt });
     res.json({ analysis: response.text });
   } catch (err: any) {
-    console.error("Erro na análise do Gemini:", err);
-    res.status(500).json({ error: err.message || "Erro na rede neural do Gemini." });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// 4. API: Gemini RPG Mission Generator
 app.post("/api/gemini/mission", async (req, res) => {
   const { player, customKey } = req.body;
-  if (!player) {
-    return res.status(400).json({ error: "Missing player data for generating contracts" });
-  }
-
+  if (!player) return res.status(400).json({ error: "Missing data" });
   try {
     const ai = getGeminiClient(customKey);
-    const prompt = `Você é um Fixer experiente que envia missões mortais para agentes na dark web.
-Crie um contrato tático ou missão cyberpunk perigosa focada nas habilidades de um agente de nível ${player.level} cuja classe é ${player.class} e subclasse é ${player.subClass}.
-Responda APENAS com um objeto JSON válido correspondente à seguinte estrutura (não inclua marcações markdown adicionais, blocos de código ou explicações):
-
-{
-  "title": "Nome da Missão / Contrato (impactante e tecnológico)",
-  "desc": "Uma descrição breve do trabalho, contexto corporativo e objetivos claros",
-  "diff": "Dificuldade sugerida (Fácil, Médio, Difícil ou Mortal)",
-  "sp": 150,
-  "xp": 300
-}
-
-Determine os valores de SP (Survivor Points) e XP proporcionalmente ao nível do jogador.`;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-      },
-    });
-
+    const prompt = `Você é um Fixer experiente que envia missões mortais para agentes na dark web. Crie um contrato tático ou missão cyberpunk perigosa focada nas habilidades de um agente de nível ${player.level} cuja classe é ${player.class} e subclasse é ${player.subClass}. Responda APENAS com um objeto JSON válido correspondente à seguinte estrutura (não inclua marcações markdown adicionais, blocos de código ou explicações): { "title": "Nome da Missão", "desc": "Descrição", "diff": "Médio", "sp": 150, "xp": 300 }`;
+    const response = await ai.models.generateContent({ model: "gemini-3.5-flash", contents: prompt, config: { responseMimeType: "application/json" } });
     const textResult = response.text || "{}";
     try {
-      const parsedMission = JSON.parse(textResult.trim());
-      res.json(parsedMission);
+      res.json(JSON.parse(textResult.trim()));
     } catch {
-      // Fallback clean extraction if JSON was wrapped in markdown
       const cleanJsonStr = textResult.replace(/```json/g, "").replace(/```/g, "").trim();
       res.json(JSON.parse(cleanJsonStr));
     }
   } catch (err: any) {
-    console.error("Erro na geração de missão pelo Gemini:", err);
-    res.status(500).json({ error: err.message || "Erro de rede no Fixer." });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Configure Vite or Static Asset delivery
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
+    const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+    app.get("*", (req, res) => { res.sendFile(path.join(distPath, "index.html")); });
   }
-
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[Mainframe Server Node] running on http://localhost:${PORT}`);
+    console.log(`[Mainframe Server] running on http://localhost:${PORT}`);
   });
 }
-
 startServer();

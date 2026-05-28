@@ -791,7 +791,7 @@ export default function GMDashboard({
               gmTab === "cadastro" ? "bg-pink-600 text-white" : "text-slate-400 hover:text-white"
             }`}
           >
-            Novo Sgto.
+            Novo Jogador.
           </button>
           <button
             onClick={() => setGmTab("transmissoes")}

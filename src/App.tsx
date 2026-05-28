@@ -34,16 +34,11 @@ const defaultPlayers: Player[] = [
     },
     conquistas: ["Mestre da Fuga", "Primeiro Sangue Neural"],
     inventory: [
-      {
-        id: 1,
-        name: "Data Shard Corrompido",
-        desc: "Fragmento de dados roubado de uma megacorp.",
-        quantity: 1,
-      },
+      { id: 1, name: "Data Shard Corrompido", desc: "Fragmento de dados roubado de uma megacorp.", quantity: 1 }
     ],
     realName: "Jogador Um",
     email: "j1@email.com",
-    sigla: "J1",
+    sigla: "J1"
   },
   {
     id: 2,
@@ -73,20 +68,13 @@ const defaultPlayers: Player[] = [
     inventory: [],
     realName: "Jogador Dois",
     email: "j2@email.com",
-    sigla: "J2",
-  },
+    sigla: "J2"
+  }
 ];
 
 const defaultSquads: Squad[] = [{ id: 1, name: "Esquadrão Alpha", members: [1, 2] }];
 const defaultShopItems: ShopItem[] = [
-  {
-    id: 1,
-    name: "Estimulante Neural",
-    desc: "Regenera o foco instantaneamente.",
-    cost: 150,
-    stock: 5,
-    targetPlayerId: null,
-  },
+  { id: 1, name: "Estimulante Neural", desc: "Regenera o foco instantaneamente.", cost: 150, stock: 5, targetPlayerId: null }
 ];
 
 export default function App() {
@@ -100,18 +88,15 @@ export default function App() {
   const [squads, setSquads] = useState<Squad[]>([]);
   const [shopItems, setShopItems] = useState<ShopItem[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]); // Adicionado estado global de notificações
+  const [notifications, setNotifications] = useState<Notification[]>([]); 
   const [geminiKey, setGeminiKey] = useState("");
-  const [gms, setGms] = useState<any[]>([]); // Estado adicionado para suportar múltiplos GMs
+  const [gms, setGms] = useState<any[]>([]); 
 
   const [showSettings, setShowSettings] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  // Trava física para impedir disparos automatizados redundantes ou precipitados (Corrige sumiço de logs)
   const initialFetchDone = useRef(false);
   const isDataLoaded = useRef(false);
-
-  // Sync state reference to avoid endless loop updates
   const skipNextPush = useRef<{ [key: string]: boolean }>({});
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
@@ -126,40 +111,32 @@ export default function App() {
       if (res.ok) {
         const cloudDatabase = await res.json();
         
-        // Block redundant pushes when we are just pulling
+        // CHAVES CORRIGIDAS DE ACORDO COM AS ROTAS EXATAS DE ENVIO:
         skipNextPush.current = {
           players: true,
           missions: true,
-          squads: true,
-          shopItems: true,
+          dg_groups: true,
+          dg_shop: true,
           logs: true,
           dg_notifications: true,
-          geminiKey: true,
+          ai_key: true,
         };
 
-        setPlayers(cloudDatabase.players || defaultPlayers);
+        setPlayers(cloudDatabase.players || []);
         setMissions(cloudDatabase.missions || []);
-        setSquads(cloudDatabase.squads || defaultSquads);
-        setShopItems(cloudDatabase.shopItems || defaultShopItems);
+        setSquads(cloudDatabase.squads || []);
+        setShopItems(cloudDatabase.shopItems || []);
         setLogs(cloudDatabase.logs || []);
-        setNotifications(cloudDatabase.notifications || []); // Captura as notificações vindo do backend
+        setNotifications(cloudDatabase.notifications || []); 
         setGeminiKey(cloudDatabase.geminiKey || "");
         setGms(cloudDatabase.gms || [{ user: "admin", pass: "admin" }]);
 
-        // Ativa a liberação apenas após popular os estados com o histórico real da nuvem
         isDataLoaded.current = true;
-
         if (!silent) showToast("Mainframe Sincronizado!", "success");
       }
     } catch (e) {
-      if (!silent) showToast("Mapeamento off. Ativando sub-rede local.", "error");
-      // Load fallback seeds if we have empty arrays and can't pull
-      if (players.length === 0) {
-        setPlayers(defaultPlayers);
-        setSquads(defaultSquads);
-        setShopItems(defaultShopItems);
-      }
-      isDataLoaded.current = true;
+      if (!silent) showToast("Mainframe ocupado. Tentando novamente.", "error");
+      // CARREGAMENTO SECO ADVERSO REMOVIDO PARA EVITAR LIMPEZAS INVOLUNTÁRIAS DE BANCO DE DADOS
     } finally {
       if (!silent) setIsSyncing(false);
     }
@@ -177,11 +154,10 @@ export default function App() {
         body: JSON.stringify({ key, value: valueObj }),
       });
     } catch (e) {
-      // Local database is still updated, fails silent on background push
+      // Background fail silent
     }
   };
 
-  // 1. Fetch on load
   useEffect(() => {
     if (!initialFetchDone.current) {
       initialFetchDone.current = true;
@@ -189,7 +165,6 @@ export default function App() {
     }
   }, []);
 
-  // 2. Observadores persistentes e blindados pela trava isDataLoaded
   useEffect(() => {
     if (isDataLoaded.current && players.length > 0) pushToMainframe("players", players);
   }, [players]);
@@ -218,7 +193,6 @@ export default function App() {
     if (isDataLoaded.current && geminiKey) pushToMainframe("ai_key", geminiKey);
   }, [geminiKey]);
 
-  // When GM inspects operational sheets, pre-select the first player if none is chosen
   useEffect(() => {
     if (sessionType === "gm" && view === "player" && loggedPlayerId === null && players.length > 0) {
       setLoggedPlayerId(players[0].id);
@@ -248,20 +222,16 @@ export default function App() {
 
   return (
     <div className="min-h-screen text-slate-100 flex flex-col font-sans">
-      {/* Dynamic Toast Feed */}
       {toast && (
         <div
           className={`fixed top-4 right-4 z-50 px-4 py-3 border font-bold uppercase tracking-widest text-xs rounded transition-all duration-300 shadow-[0_0_15px_rgba(0,0,0,0.6)] ${
-            toast.type === "error"
-              ? "bg-red-950/90 border-red-500 text-red-400"
-              : "bg-cyan-950/90 border-cyan-500 text-cyan-400"
+            toast.type === "error" ? "bg-red-950/90 border-red-500 text-red-400" : "bg-cyan-950/90 border-cyan-500 text-cyan-400"
           }`}
         >
           {toast.msg}
         </div>
       )}
 
-      {/* Main Terminal Shell header */}
       {sessionType !== "none" && (
         <nav className="bg-zinc-950 border-b border-zinc-850 p-4 sticky top-0 z-40 shadow-md">
           <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
@@ -309,9 +279,7 @@ export default function App() {
                     className="bg-zinc-900 border border-zinc-800 text-white rounded text-xs px-2.5 py-1 font-bold focus:outline-none focus:border-pink-500"
                   >
                     {players.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
+                      <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
                 </div>
@@ -352,7 +320,6 @@ export default function App() {
         </nav>
       )}
 
-      {/* Settings Panel details */}
       {showSettings && sessionType === "gm" && (
         <div className="bg-zinc-900 border-b border-zinc-800 p-4">
           <div className="max-w-7xl mx-auto flex items-end gap-4 flex-wrap">
@@ -381,22 +348,14 @@ export default function App() {
         </div>
       )}
 
-      {/* Router Views Container */}
       <main className="flex-1 pb-16">
         {sessionType === "none" ? (
           <MainGate
             players={players}
-            gms={gms} // Repassa a lista de GMs atualizada para a portaria
+            gms={gms} 
             showToast={showToast}
-            onGMLogin={() => {
-              setSessionType("gm");
-              setView("gm");
-            }}
-            onPlayerLogin={(id) => {
-              setSessionType("player");
-              setLoggedPlayerId(id);
-              setView("player");
-            }}
+            onGMLogin={() => { setSessionType("gm"); setView("gm"); }}
+            onPlayerLogin={(id) => { setSessionType("player"); setLoggedPlayerId(id); setView("player"); }}
           />
         ) : view === "player" ? (
           activePlayer ? (
