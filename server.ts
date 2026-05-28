@@ -94,12 +94,11 @@ app.use(express.json({ limit: "50mb" }));
 // Google Web App GAS Sync API Proxy URL
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz4240i9n-_ncrsfDXUISP5CCGrKwQ8zvdo6jeM-JuQmhj5tTOkeBcrpWh1WOI5meGyeA/exec";
 
-// 1. API: Get Mainframe Data
+// 1. API: Get Mainframe Data (Versão com Fusão Inteligente Antiperda)
 app.get("/api/mainframe", async (req, res) => {
   try {
-    // Attempt to pull from GAS sheet for multi-user sync
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout max for quick response
+    const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout max
 
     const response = await fetch(GAS_URL, { signal: controller.signal });
     clearTimeout(timeoutId);
@@ -107,16 +106,32 @@ app.get("/api/mainframe", async (req, res) => {
     if (response.ok) {
       const cloudDatabase: any = await response.json();
       
-      // Merge spreadsheet remote database with local
       if (cloudDatabase.players) activeDB.players = JSON.parse(cloudDatabase.players);
       if (cloudDatabase.missions) activeDB.missions = JSON.parse(cloudDatabase.missions);
       if (cloudDatabase.dg_groups) activeDB.squads = JSON.parse(cloudDatabase.dg_groups);
       if (cloudDatabase.dg_shop) activeDB.shopItems = JSON.parse(cloudDatabase.dg_shop);
-      if (cloudDatabase.logs) activeDB.logs = JSON.parse(cloudDatabase.logs);
-      if (cloudDatabase.dg_notifications) activeDB.notifications = JSON.parse(cloudDatabase.dg_notifications); // Sincronia de notificações
+      if (cloudDatabase.dg_notifications) activeDB.notifications = JSON.parse(cloudDatabase.dg_notifications);
       if (cloudDatabase.ai_key) activeDB.geminiKey = cloudDatabase.ai_key;
       
-      // Varredura de chaves dinâmicas sequenciais (gm_user_1, gm_user_2, etc.)
+      // BLINDAGEM DO GET: Em vez de sobrescrever, mescla os logs da nuvem com os locais
+      if (cloudDatabase.logs) {
+        const cloudLogs = JSON.parse(cloudDatabase.logs);
+        const incomingLogs = Array.isArray(cloudLogs) ? cloudLogs : [cloudLogs];
+        
+        // Mapeia IDs locais para evitar duplicatas
+        const localLogIds = new Set(activeDB.logs.map((l) => l.id));
+        
+        // Filtra apenas o que a nuvem tem de novo que o servidor local não conhece
+        const uniqueCloudLogs = incomingLogs.filter((l) => !localLogIds.has(l.id));
+
+        if (uniqueCloudLogs.length > 0) {
+          activeDB.logs = [...uniqueCloudLogs, ...activeDB.logs].sort(
+            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+          );
+        }
+      }
+      
+      // Varredura de chaves dinâmicas de GMs
       const temporaryGmsList: { user: string; pass: string }[] = [];
       Object.keys(cloudDatabase).forEach((cloudKey) => {
         if (cloudKey.startsWith("gm_user_")) {
@@ -129,7 +144,6 @@ app.get("/api/mainframe", async (req, res) => {
         }
       });
 
-      // Aloca a lista se encontrar dados, senão mantém a contingência estável
       if (temporaryGmsList.length > 0) {
         activeDB.gms = temporaryGmsList;
       } else if (cloudDatabase.gm_user && cloudDatabase.gm_pass) {
@@ -144,15 +158,16 @@ app.get("/api/mainframe", async (req, res) => {
     console.log("GAS mainframe sync timed out or unreachable. Serving local db state instead.");
   }
 
+  // Entrega o estado unificado e protegido contra perdas por lag
   res.json({
     players: activeDB.players,
     missions: activeDB.missions,
     squads: activeDB.squads,
     shopItems: activeDB.shopItems,
     logs: activeDB.logs,
-    notifications: activeDB.notifications, // Despacha notificações para o React
+    notifications: activeDB.notifications,
     geminiKey: activeDB.geminiKey,
-    gms: activeDB.gms || [{ user: "admin", pass: "admin" }] // Despacha a lista mapeada
+    gms: activeDB.gms || [{ user: "admin", pass: "admin" }]
   });
 });
 
