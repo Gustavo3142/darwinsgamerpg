@@ -182,15 +182,13 @@ app.post("/api/mainframe", async (req, res) => {
     else if (key === "gms") activeDB.gms = parsedValue;
     else if (key === "dg_notifications") activeDB.notifications = parsedValue;
     else if (key === "logs") {
-      // CORREÇÃO: Transforma em array (por segurança) e junta os antigos com os novos!
       const incomingLogs = Array.isArray(parsedValue) ? parsedValue : [parsedValue];
       const existingLogs = activeDB.logs || [];
       
-      activeDB.logs = deduplicateLogs([...existingLogs, ...incomingLogs]);
-    }
+      // Juntamos os logs antigos com os novos
+      const combined = [...existingLogs, ...incomingLogs];
       
-      // Concatenação e filtragem direta anti-duplicados por ID
-      const combined = [...incomingLogs, ...existingLogs];
+      // Filtramos as duplicatas manualmente como seu código original fazia
       const uniqueMap = new Map();
       combined.forEach((log) => {
         if (log && log.id && !uniqueMap.has(log.id)) {
@@ -198,9 +196,12 @@ app.post("/api/mainframe", async (req, res) => {
         }
       });
       
+      // Salvamos no banco e organizamos por data
       activeDB.logs = Array.from(uniqueMap.values()).sort(
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
       );
+      
+      // Preparamos a string final para mandar pro Google Sheets
       valueToSendToCloud = JSON.stringify(activeDB.logs);
     }
 
