@@ -1,11 +1,4 @@
-let lastId = 0;
-
-export function generateUniqueId(): number {
-  const now = Date.now();
-  if (now <= lastId) {
-    lastId = lastId + 1;
-  } else {
-    lastId = now;
-  }
-  return lastId;
-}
+export const generateId = () => {
+  // Retorna o milissegundo atual + 5 dígitos aleatórios, impossibilitando colisões
+  return parseInt(`${Date.now()}${Math.floor(Math.random() * 90000 + 10000)}`);
+};

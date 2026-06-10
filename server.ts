@@ -182,8 +182,12 @@ app.post("/api/mainframe", async (req, res) => {
     else if (key === "gms") activeDB.gms = parsedValue;
     else if (key === "dg_notifications") activeDB.notifications = parsedValue;
     else if (key === "logs") {
+      // CORREÇÃO: Transforma em array (por segurança) e junta os antigos com os novos!
       const incomingLogs = Array.isArray(parsedValue) ? parsedValue : [parsedValue];
       const existingLogs = activeDB.logs || [];
+      
+      activeDB.logs = deduplicateLogs([...existingLogs, ...incomingLogs]);
+    }
       
       // Concatenação e filtragem direta anti-duplicados por ID
       const combined = [...incomingLogs, ...existingLogs];

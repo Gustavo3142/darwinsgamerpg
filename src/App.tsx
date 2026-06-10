@@ -168,7 +168,16 @@ export default function App() {
   }, [players]);
 
   useEffect(() => {
-    if (isDataLoaded.current) pushToMainframe("missions", missions);
+    if (isDataLoaded.current) {
+      // NOVA TRAVA DE SEGURANÇA: Se a lista estiver vazia, ele para aqui e não envia para o servidor
+      if (missions.length === 0) {
+        console.warn("Bloqueado salvamento de missões vazias para proteger o servidor.");
+        return; 
+      }
+      
+      // Se passou da trava de segurança (tem missões), ele salva normalmente!
+      pushToMainframe("missions", missions);
+    }
   }, [missions]);
 
   useEffect(() => {
