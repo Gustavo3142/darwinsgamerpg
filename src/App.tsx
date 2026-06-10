@@ -128,9 +128,7 @@ export default function App() {
         setShopItems(cloudDatabase.shopItems || []);
         setLogs(cloudDatabase.logs || []);
         setNotifications(cloudDatabase.notifications || []); 
-        setGeminiKey(cloudDatabase.geminiKey || "");
-        setGms(cloudDatabase.gms || [{ user: "admin", pass: "admin" }]);
-
+        
         isDataLoaded.current = true;
         if (!silent) showToast("Mainframe Sincronizado!", "success");
       }

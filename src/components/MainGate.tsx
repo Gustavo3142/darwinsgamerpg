@@ -21,36 +21,47 @@ export default function MainGate({
   const [user, setUser] = useState("");
   const [pass, setPass] = useState("");
 
-  const handleGMLogin = (e: React.FormEvent) => {
+ const handleGMLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Varredura dinâmica na lista de GMs configurados sequencialmente na aba Database
-    const isValidGM = gms?.some(
-      (g) => g.user.toLowerCase() === user.toLowerCase() && g.pass === pass
-    );
+    try {
+      const response = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user, pass, type: "gm" })
+      });
+      const data = await response.json();
 
-    // Concede acesso se encontrar na planilha ou ativa o fallback padrão de contingência
-    if (isValidGM || (user === "admin" && pass === "admin")) {
-      onGMLogin();
-      showToast("Acesso autorizado. Bem-vindo, GM.", "success");
-    } else {
-      showToast("Acesso Negado! Usuário ou senha incorretos.", "error");
+      if (data.success) {
+        onGMLogin();
+        showToast("Acesso autorizado. Bem-vindo, GM.", "success");
+      } else {
+        showToast("Acesso Negado! Usuário ou senha incorretos.", "error");
+      }
+    } catch (error) {
+      showToast("Erro de comunicação com o servidor.", "error");
     }
   };
 
-  const handlePlayerLogin = (e: React.FormEvent) => {
+  const handlePlayerLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const foundPlayer = players.find(
-      (p) =>
-        (p.sigla.toLowerCase() === user.toLowerCase() ||
-          p.email.toLowerCase() === user.toLowerCase()) &&
-        p.password === pass
-    );
-    if (foundPlayer) {
-      onPlayerLogin(foundPlayer.id);
-      showToast(`Sincronização Neural concluída. Bem-vindo, ${foundPlayer.name}.`, "success");
-    } else {
-      showToast("Acesso Negado! Sigla/Email ou senha incorretos.", "error");
+    
+    try {
+      const response = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user, pass, type: "player" })
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        onPlayerLogin(data.playerId);
+        showToast(`Sincronização Neural concluída. Bem-vindo, ${data.playerName}.`, "success");
+      } else {
+        showToast("Acesso Negado! Sigla/Email ou senha incorretos.", "error");
+      }
+    } catch (error) {
+      showToast("Erro de comunicação com o servidor.", "error");
     }
   };
 

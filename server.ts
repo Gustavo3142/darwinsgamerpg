@@ -145,17 +145,23 @@ app.get("/api/mainframe", async (req, res) => {
     console.log("Erro de comunicação com a planilha. Entregando dados locais.");
   }
 
+  // Cria uma cópia segura dos jogadores, removendo o campo de senha
+  const safePlayers = activeDB.players.map(p => {
+    const { password, ...playerSemSenha } = p;
+    return playerSemSenha;
+  });
+
+  // Retorna apenas dados que são seguros para a internet ver
   res.json({
-    players: activeDB.players,
+    players: safePlayers,
     missions: activeDB.missions,
     squads: activeDB.squads,
     shopItems: activeDB.shopItems,
     logs: activeDB.logs,
-    notifications: activeDB.notifications,
-    geminiKey: activeDB.geminiKey,
-    gms: activeDB.gms || [{ user: "admin", pass: "admin" }]
+    notifications: activeDB.notifications
+    // ATENÇÃO: geminiKey e gms foram removidos daqui para proteção!
   });
-});
+}); // Fim do app.get("/api/mainframe"
 
 // 2. API: Push Mainframe Data
 app.post("/api/mainframe", async (req, res) => {
@@ -219,6 +225,40 @@ function getGeminiClient(customKey?: string) {
     httpOptions: { headers: { "User-Agent": "aistudio-build" } },
   });
 }
+// NOVA ROTA DE LOGIN SEGURO
+app.post("/api/login", (req, res) => {
+  const { user, pass, type } = req.body;
+
+  // Se quem está tentando logar é o GM
+  if (type === "gm") {
+    const isValidGM = activeDB.gms?.some(
+      (g) => g.user.toLowerCase() === user.toLowerCase() && g.pass === pass
+    );
+    if (isValidGM || (user === "admin" && pass === "admin")) {
+      return res.json({ success: true, role: "gm" });
+    }
+  } 
+  // Se quem está tentando logar é um Jogador
+  else if (type === "player") {
+    const foundPlayer = activeDB.players.find(
+      (p) =>
+        (p.sigla.toLowerCase() === user.toLowerCase() ||
+         p.email.toLowerCase() === user.toLowerCase()) &&
+        p.password === pass
+    );
+    if (foundPlayer) {
+      return res.json({ 
+        success: true, 
+        role: "player", 
+        playerId: foundPlayer.id, 
+        playerName: foundPlayer.name 
+      });
+    }
+  }
+
+  // Se não encontrou ou a senha tá errada:
+  return res.status(401).json({ success: false, error: "Credenciais inválidas" });
+});
 
 app.post("/api/gemini/analyze", async (req, res) => {
   const { player, customKey } = req.body;
