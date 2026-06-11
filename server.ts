@@ -207,12 +207,19 @@ app.post("/api/mainframe", async (req, res) => {
 
     saveLocalDB(activeDB);
 
-    fetch(GAS_URL, {
+    // O servidor agora DEVE esperar (await) o Google Sheets terminar antes de desligar ou dar sucesso
+    console.log(`Enviando sincronização de [${key}] para o Google Sheets...`);
+    const response = await fetch(GAS_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key, value: typeof valueToSendToCloud === "string" ? valueToSendToCloud : JSON.stringify(valueToSendToCloud) }),
-    }).catch(() => {});
+    });
 
+    if (!response.ok) {
+      throw new Error(`O Google Sheets falhou ao salvar: ${key}`);
+    }
+
+    console.log(`Sucesso: [${key}] salvo na Nuvem definitivamente.`);
     res.json({ success: true });
   } catch (err) {
     console.error("Erro de gravação no mainframe:", err);

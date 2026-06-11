@@ -181,30 +181,53 @@ export default function App() {
   }, [missions]);
 
   useEffect(() => {
-    if (isDataLoaded.current && squads.length > 0) pushToMainframe("dg_groups", squads);
+    if (isDataLoaded.current) {
+      if (players.length === 0) { skipNextPush.current.players = false; return; }
+      pushToMainframe("players", players);
+    }
+  }, [players]);
+
+  useEffect(() => {
+    if (isDataLoaded.current) {
+      if (missions.length === 0) { skipNextPush.current.missions = false; return; }
+      pushToMainframe("missions", missions);
+    }
+  }, [missions]);
+
+  useEffect(() => {
+    if (isDataLoaded.current) {
+      if (squads.length === 0) { skipNextPush.current.dg_groups = false; return; }
+      pushToMainframe("dg_groups", squads);
+    }
   }, [squads]);
 
   useEffect(() => {
-    if (isDataLoaded.current && shopItems.length > 0) pushToMainframe("dg_shop", shopItems);
+    if (isDataLoaded.current) {
+      if (shopItems.length === 0) { skipNextPush.current.dg_shop = false; return; }
+      pushToMainframe("dg_shop", shopItems);
+    }
   }, [shopItems]);
 
   useEffect(() => {
-    if (isDataLoaded.current && logs.length > 0) pushToMainframe("logs", logs);
+    if (isDataLoaded.current) {
+      if (logs.length === 0) { skipNextPush.current.logs = false; return; }
+      pushToMainframe("logs", logs);
+    }
   }, [logs]);
 
   useEffect(() => {
-    if (isDataLoaded.current) pushToMainframe("dg_notifications", notifications);
+    if (isDataLoaded.current) {
+      if (notifications.length === 0) { skipNextPush.current.dg_notifications = false; return; }
+      pushToMainframe("dg_notifications", notifications);
+    }
   }, [notifications]);
 
   useEffect(() => {
-    if (isDataLoaded.current && geminiKey) pushToMainframe("ai_key", geminiKey);
-  }, [geminiKey]);
-
-  useEffect(() => {
-    if (sessionType === "gm" && view === "player" && loggedPlayerId === null && players.length > 0) {
-      setLoggedPlayerId(players[0].id);
+    if (isDataLoaded.current) {
+      if (!geminiKey) { skipNextPush.current.ai_key = false; return; }
+      pushToMainframe("ai_key", geminiKey);
     }
-  }, [sessionType, view, loggedPlayerId, players]);
+  }, [geminiKey]);
 
   const addLog = (playerId: number, action: string, desc: string, xp = 0, sp = 0) => {
     const newLog: LogEntry = {
