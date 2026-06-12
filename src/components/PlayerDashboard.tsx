@@ -20,7 +20,7 @@ import {
   MessageSquare,
   AlertTriangle
 } from "lucide-react";
-import { Player, Mission, ShopItem, Notification } from "../types";
+import { Player, Mission, ShopItem, Notification, LogEntry } from "../types"; // <-- Adicionado LogEntry
 import { generateUniqueId } from "../utils/id";
 
 const attributeIconsMap: { [key: string]: React.ComponentType<any> } = {
@@ -47,8 +47,9 @@ interface PlayerDashboardProps {
   squads: Array<{ id: number; name: string; members: number[] }>;
   shopItems: ShopItem[];
   setShopItems: React.Dispatch<React.SetStateAction<ShopItem[]>>;
-  notifications: Notification[]; // Propriedade adicionada
-  setNotifications: React.Dispatch<React.SetStateAction<Notification[]>>; // Propriedade adicionada
+  logs: LogEntry[]; // <-- CORREÇÃO: Faltava isso para o painel ler os logs!
+  notifications: Notification[]; 
+  setNotifications: React.Dispatch<React.SetStateAction<Notification[]>>; 
   addLog: (playerId: number, action: string, desc: string, xp?: number, sp?: number) => void;
   geminiKey: string;
   showToast: (msg: string, type?: "success" | "error") => void;
@@ -63,6 +64,7 @@ export default function PlayerDashboard({
   squads,
   shopItems,
   setShopItems,
+  logs, // <-- CORREÇÃO: Faltava isso aqui também!
   notifications,
   setNotifications,
   addLog,
@@ -74,34 +76,31 @@ export default function PlayerDashboard({
   const [analysis, setAnalysis] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [inspectedPlayer, setInspectedPlayer] = useState<Player | null>(null);
-  const [showNotifPanel, setShowNotifPanel] = useState(false); // Controle do painel de avisos
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
 
-  if (!player) return null;
-  // --- SISTEMA DE NOTIFICAÇÕES IN-APP ---
+  // --- SISTEMA DE NOTIFICAÇÕES IN-APP (SEMPRE ANTES DO RETURN) ---
   const notifiedLogIds = useRef<number[]>([]);
   const isFirstLoad = useRef(true);
 
   useEffect(() => {
-    // Na primeira vez que a tela carrega, ele apenas anota os logs que já existem 
-    // para não tocar o som de todas as mensagens antigas de uma vez.
+    // Se o player não carregou, ele não faz nada, mas o Hook rodou em segurança!
+    if (!player || !logs) return; 
+
     if (isFirstLoad.current) {
       notifiedLogIds.current = logs.map(l => l.id);
       isFirstLoad.current = false;
       return;
     }
 
-    // Filtra para achar apenas logs NOVOS que sejam para este jogador
     const newLogs = logs.filter(
       (l) => l.playerId === player.id && !notifiedLogIds.current.includes(l.id)
     );
 
     if (newLogs.length > 0) {
-      // 1. Toca o Efeito Sonoro Cyberpunk (Biblioteca oficial do Google)
       const sfx = new Audio("https://actions.google.com/sounds/v1/science_fiction/teleport_in.ogg");
       sfx.volume = 0.6;
-      sfx.play().catch(() => {}); // catch evita erro caso o navegador bloqueie
+      sfx.play().catch(() => {});
 
-      // 2. Mostra o Pop-up Neon para cada novidade
       newLogs.forEach((log) => {
         let msg = `TRANSMISSÃO RECEBIDA: ${log.desc}`;
         
@@ -114,13 +113,14 @@ export default function PlayerDashboard({
         }
 
         showToast(msg, log.xp < 0 ? "error" : "success");
-        
-        // Marca como "já notificado" para não apitar de novo
         notifiedLogIds.current.push(log.id);
       });
     }
-  }, [logs, player.id, showToast]);
+  }, [logs, player, showToast]);
   // --------------------------------------
+
+  // AGORA SIM, O RETURN DE PROTEÇÃO VEM AQUI
+  if (!player) return null;
 
   const mySquads = squads.filter((s) => s.members.includes(player.id)).map((s) => s.id);
 
