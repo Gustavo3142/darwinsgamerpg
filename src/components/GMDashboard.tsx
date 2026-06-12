@@ -315,12 +315,16 @@ export default function GMDashboard({
       return showToast("Nenhum agente válido identificado para receber o pagamento.", "error");
     }
 
+    // 1. PRIMEIRO: Atualiza a matemática dos jogadores de forma limpa (sem logs aqui dentro)
     setPlayers((prevPlayers) =>
       prevPlayers.map((p) => {
         if (idsToReward.includes(p.id)) {
-          let newXp = p.currentXp + mission.xp;
-          let newLevel = p.level;
-          let totalXpNeeded = p.totalXpForLevel;
+          const earnedXp = Number(mission.xp) || 0;
+          const earnedSp = Number(mission.sp) || 0;
+
+          let newXp = Number(p.currentXp) + earnedXp;
+          let newLevel = Number(p.level);
+          let totalXpNeeded = Number(p.totalXpForLevel);
 
           while (newXp >= totalXpNeeded) {
             newXp -= totalXpNeeded;
@@ -328,19 +332,25 @@ export default function GMDashboard({
             totalXpNeeded = Math.floor(totalXpNeeded * 1.5);
             showToast(`${p.name} subiu para o NÍVEL ${newLevel}!`, "success");
           }
-          addLog(p.id, "MISSÃO", `Concluiu a missão: ${mission.title}`, mission.xp, mission.sp);
+          
           return {
             ...p,
             currentXp: newXp,
             level: newLevel,
             totalXpForLevel: totalXpNeeded,
-            spBalance: p.spBalance + mission.sp,
+            spBalance: Number(p.spBalance) + earnedSp,
           };
         }
         return p;
       })
     );
 
+    // 2. SEGUNDO: Gera os logs de forma segura para a nuvem processar
+    idsToReward.forEach(id => {
+      addLog(id, "MISSÃO", `Concluiu a missão: ${mission.title}`, Number(mission.xp), Number(mission.sp));
+    });
+
+    // 3. TERCEIRO: Consome a missão
     if (mission.quantity > 1) {
       setMissions((prev) =>
         prev.map((m) => (m.id === missionId ? { ...m, quantity: m.quantity - 1, claimedBy: [] } : m))
@@ -348,6 +358,7 @@ export default function GMDashboard({
     } else {
       setMissions((prev) => prev.filter((m) => m.id !== missionId));
     }
+    
     showToast("Recompensas injetadas com sucesso.", "success");
   };
 

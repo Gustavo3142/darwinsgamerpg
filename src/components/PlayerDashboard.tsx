@@ -76,7 +76,49 @@ export default function PlayerDashboard({
   const [analysis, setAnalysis] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [inspectedPlayer, setInspectedPlayer] = useState<Player | null>(null);
-  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const [showNotifPanel, setShowNotifPanel] = useState(false); // Controle do painel de avisos
+  
+  // ESSA É A NOVA VARIÁVEL DE ESTADO! Ela guarda a mensagem gigante da tela.
+  const [screenAlert, setScreenAlert] = useState<{title: string, desc: string, xp: number, sp: number, type: string} | null>(null);
+
+  // --- SISTEMA DE NOTIFICAÇÕES IN-APP E SOM ---
+  const notifiedLogIds = useRef<number[]>([]);
+  const isFirstLoad = useRef(true);
+
+  useEffect(() => {
+    if (!player || !logs) return; 
+
+    if (isFirstLoad.current) {
+      notifiedLogIds.current = logs.map(l => l.id);
+      isFirstLoad.current = false;
+      return;
+    }
+
+    const newLogs = logs.filter(
+      (l) => l.playerId === player.id && !notifiedLogIds.current.includes(l.id)
+    );
+
+    if (newLogs.length > 0) {
+      const sfx = new Audio("https://actions.google.com/sounds/v1/science_fiction/shield_activation.ogg");
+      sfx.volume = 1.0;
+      sfx.play().catch(() => console.log("Áudio bloqueado pelo navegador."));
+
+      const mainLog = newLogs.reduce((prev, current) => (Math.abs(current.xp) + Math.abs(current.sp) > Math.abs(prev.xp) + Math.abs(prev.sp)) ? current : prev);
+
+      setScreenAlert({
+        title: mainLog.action === "DEGRADAÇÃO" || mainLog.xp < 0 ? "⚠️ ALERTA CRÍTICO" : "TRANSMISSÃO DO MAINFRAME",
+        desc: mainLog.desc,
+        xp: mainLog.xp,
+        sp: mainLog.sp,
+        type: mainLog.xp < 0 ? "error" : "success"
+      });
+
+      newLogs.forEach((log) => { notifiedLogIds.current.push(log.id); });
+    }
+  }, [logs, player]);
+  // -------------------------------------------
+
+  if (!player) return null;
 
   // --- SISTEMA DE NOTIFICAÇÕES IN-APP (SEMPRE ANTES DO RETURN) ---
   const notifiedLogIds = useRef<number[]>([]);
@@ -283,6 +325,48 @@ export default function PlayerDashboard({
   return (
     <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-8 relative">
       
+      {/* --- HUD GIGANTE DE RECOMPENSAS / ALERTAS --- */}
+      {screenAlert && (
+        <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 backdrop-blur-md animate-fade-in">
+          <div className={`p-8 md:p-12 w-full max-w-2xl border-2 flex flex-col items-center text-center shadow-[0_0_50px_rgba(0,0,0,0.8)] ${screenAlert.type === 'error' ? 'border-red-500 bg-red-950/40 shadow-red-500/20' : 'border-cyan-500 bg-cyan-950/40 shadow-cyan-500/20'}`}>
+            
+            <h2 className={`text-3xl md:text-5xl font-black uppercase tracking-widest mb-6 ${screenAlert.type === 'error' ? 'text-red-500 animate-pulse' : 'text-cyan-400'}`}>
+              {screenAlert.title}
+            </h2>
+            
+            <p className="text-lg md:text-xl text-slate-200 mb-10 font-medium font-sans">
+              "{screenAlert.desc}"
+            </p>
+            
+            <div className="flex gap-8 mb-12">
+              {screenAlert.xp !== 0 && (
+                <div className={`text-5xl font-black flex flex-col items-center ${screenAlert.xp > 0 ? 'text-green-400' : 'text-red-500'}`}>
+                  {screenAlert.xp > 0 ? `+${screenAlert.xp}` : screenAlert.xp} 
+                  <span className="text-sm tracking-widest mt-2 uppercase text-slate-400">EXP INJETADA</span>
+                </div>
+              )}
+              {screenAlert.sp !== 0 && (
+                <div className={`text-5xl font-black flex flex-col items-center ${screenAlert.sp > 0 ? 'text-pink-500' : 'text-red-500'}`}>
+                  {screenAlert.sp > 0 ? `+${screenAlert.sp}` : screenAlert.sp} 
+                  <span className="text-sm tracking-widest mt-2 uppercase text-slate-400">SP INJETADO</span>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => {
+                const sfxClick = new Audio("https://actions.google.com/sounds/v1/ui/beep_short_on.ogg");
+                sfxClick.play().catch(()=>{});
+                setScreenAlert(null); // Aqui nós desligamos a "Variável de Estado" e o painel some!
+              }}
+              className={`px-10 py-5 text-white font-black uppercase tracking-widest text-lg transition-all cursor-pointer shadow-lg ${screenAlert.type === 'error' ? 'bg-red-600 hover:bg-red-500 shadow-red-500/50' : 'bg-cyan-600 hover:bg-cyan-500 shadow-cyan-500/50'}`}
+            >
+              Ciente. Fechar Transmissão.
+            </button>
+          </div>
+        </div>
+      )}
+      {/* ------------------------------------------- */}
       {/* Notifications Modal Overlay */}
       {showNotifPanel && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
