@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Shield,
   Activity,
@@ -77,6 +77,50 @@ export default function PlayerDashboard({
   const [showNotifPanel, setShowNotifPanel] = useState(false); // Controle do painel de avisos
 
   if (!player) return null;
+  // --- SISTEMA DE NOTIFICAÇÕES IN-APP ---
+  const notifiedLogIds = useRef<number[]>([]);
+  const isFirstLoad = useRef(true);
+
+  useEffect(() => {
+    // Na primeira vez que a tela carrega, ele apenas anota os logs que já existem 
+    // para não tocar o som de todas as mensagens antigas de uma vez.
+    if (isFirstLoad.current) {
+      notifiedLogIds.current = logs.map(l => l.id);
+      isFirstLoad.current = false;
+      return;
+    }
+
+    // Filtra para achar apenas logs NOVOS que sejam para este jogador
+    const newLogs = logs.filter(
+      (l) => l.playerId === player.id && !notifiedLogIds.current.includes(l.id)
+    );
+
+    if (newLogs.length > 0) {
+      // 1. Toca o Efeito Sonoro Cyberpunk (Biblioteca oficial do Google)
+      const sfx = new Audio("https://actions.google.com/sounds/v1/science_fiction/teleport_in.ogg");
+      sfx.volume = 0.6;
+      sfx.play().catch(() => {}); // catch evita erro caso o navegador bloqueie
+
+      // 2. Mostra o Pop-up Neon para cada novidade
+      newLogs.forEach((log) => {
+        let msg = `TRANSMISSÃO RECEBIDA: ${log.desc}`;
+        
+        if (log.xp > 0 || log.sp > 0) {
+          msg = `RECOMPENSA: +${log.xp} XP / +${log.sp} SP`;
+        } else if (log.action === "DEGRADAÇÃO" || log.xp < 0) {
+          msg = `ALERTA: Integridade Comprometida!`;
+        } else if (log.action === "MERCADO") {
+          msg = `COMPRA APROVADA: ${log.desc}`;
+        }
+
+        showToast(msg, log.xp < 0 ? "error" : "success");
+        
+        // Marca como "já notificado" para não apitar de novo
+        notifiedLogIds.current.push(log.id);
+      });
+    }
+  }, [logs, player.id, showToast]);
+  // --------------------------------------
 
   const mySquads = squads.filter((s) => s.members.includes(player.id)).map((s) => s.id);
 

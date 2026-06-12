@@ -156,11 +156,22 @@ export default function App() {
     }
   };
 
-  useEffect(() => {
+ useEffect(() => {
+    // 1. Faz o primeiro carregamento ao abrir a página
     if (!initialFetchDone.current) {
       initialFetchDone.current = true;
       pullFromMainframe(true);
     }
+
+    // 2. O RADAR SILENCIOSO: A cada 15 segundos ele busca novidades na nuvem sem avisar na tela
+    const radar = setInterval(() => {
+      if (isDataLoaded.current) {
+        pullFromMainframe(true);
+      }
+    }, 15000);
+
+    // Limpa o radar se o jogador fechar o app
+    return () => clearInterval(radar);
   }, []);
 
   useEffect(() => {
