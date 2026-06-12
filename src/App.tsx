@@ -182,49 +182,56 @@ export default function App() {
 
   useEffect(() => {
     if (isDataLoaded.current) {
-      if (players.length === 0) { skipNextPush.current.players = false; return; }
+      if (skipNextPush.current.players) { skipNextPush.current.players = false; return; }
+      if (players.length === 0) return;
       pushToMainframe("players", players);
     }
   }, [players]);
 
   useEffect(() => {
     if (isDataLoaded.current) {
-      if (missions.length === 0) { skipNextPush.current.missions = false; return; }
+      if (skipNextPush.current.missions) { skipNextPush.current.missions = false; return; }
+      if (missions.length === 0) return;
       pushToMainframe("missions", missions);
     }
   }, [missions]);
 
   useEffect(() => {
     if (isDataLoaded.current) {
-      if (squads.length === 0) { skipNextPush.current.dg_groups = false; return; }
+      if (skipNextPush.current.dg_groups) { skipNextPush.current.dg_groups = false; return; }
+      if (squads.length === 0) return;
       pushToMainframe("dg_groups", squads);
     }
   }, [squads]);
 
   useEffect(() => {
     if (isDataLoaded.current) {
-      if (shopItems.length === 0) { skipNextPush.current.dg_shop = false; return; }
+      if (skipNextPush.current.dg_shop) { skipNextPush.current.dg_shop = false; return; }
+      if (shopItems.length === 0) return;
       pushToMainframe("dg_shop", shopItems);
     }
   }, [shopItems]);
 
   useEffect(() => {
     if (isDataLoaded.current) {
-      if (logs.length === 0) { skipNextPush.current.logs = false; return; }
+      if (skipNextPush.current.logs) { skipNextPush.current.logs = false; return; }
+      if (logs.length === 0) return;
       pushToMainframe("logs", logs);
     }
   }, [logs]);
 
   useEffect(() => {
     if (isDataLoaded.current) {
-      if (notifications.length === 0) { skipNextPush.current.dg_notifications = false; return; }
+      if (skipNextPush.current.dg_notifications) { skipNextPush.current.dg_notifications = false; return; }
+      if (notifications.length === 0) return;
       pushToMainframe("dg_notifications", notifications);
     }
   }, [notifications]);
 
   useEffect(() => {
     if (isDataLoaded.current) {
-      if (!geminiKey) { skipNextPush.current.ai_key = false; return; }
+      if (skipNextPush.current.ai_key) { skipNextPush.current.ai_key = false; return; }
+      if (!geminiKey) return;
       pushToMainframe("ai_key", geminiKey);
     }
   }, [geminiKey]);

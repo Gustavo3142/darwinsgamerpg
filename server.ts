@@ -151,18 +151,17 @@ app.get("/api/mainframe", async (req, res) => {
     return playerSemSenha;
   });
 
-  // Retorna apenas dados que são seguros para a internet ver
+// Vamos enviar as senhas para evitar que o React sobrescreva o banco com jogadores em branco
   res.json({
-    players: safePlayers,
+    players: activeDB.players,
     missions: activeDB.missions,
     squads: activeDB.squads,
     shopItems: activeDB.shopItems,
     logs: activeDB.logs,
     notifications: activeDB.notifications
-    // ATENÇÃO: geminiKey e gms foram removidos daqui para proteção!
   });
 }); // Fim do app.get("/api/mainframe"
-
+  
 // 2. API: Push Mainframe Data
 app.post("/api/mainframe", async (req, res) => {
   const { key, value } = req.body;
