@@ -253,10 +253,11 @@ app.post("/api/login", (req, res) => {
   else if (type === "player") {
     const foundPlayer = activeDB.players.find(
       (p) =>
-        (p.sigla.toLowerCase() === user.toLowerCase() ||
-         p.email.toLowerCase() === user.toLowerCase()) &&
-        p.password === pass
+        (p.sigla?.toLowerCase() === user.toLowerCase() ||
+         p.email?.toLowerCase() === user.toLowerCase()) &&
+        (p.password === pass || p.pass === pass) // CORREÇÃO: Verifica os dois nomes possíveis!
     );
+    
     if (foundPlayer) {
       return res.json({ 
         success: true, 

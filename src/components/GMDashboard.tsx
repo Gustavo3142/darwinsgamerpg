@@ -132,10 +132,16 @@ export default function GMDashboard({
     { title: "Limpeza de Malware", desc: "Expurgue a infecção cibernética dos servidores locais infectados por um esquadrão hacker rival.", sp: 100, xp: 200 }
   ];
 
-  const [reportStartDate, setReportStartDate] = useState("");
+ // Analytics State
+  const [reportStartDate, setReportStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7); // Define 7 dias atrás como padrão
+    return d.toISOString().split('T')[0];
+  });
   const [reportEndDate, setReportEndDate] = useState("");
   const [reportPlayerId, setReportPlayerId] = useState("");
   const [selectedCompareIds, setSelectedCompareIds] = useState<number[]>([]);
+  const [logStatusFilter, setLogStatusFilter] = useState("todos"); // Novo filtro (Ativos/Excluídos)
 
   const [mTitle, setMTitle] = useState("");
   const [mDesc, setMDesc] = useState("");
@@ -720,6 +726,12 @@ export default function GMDashboard({
       const squad = squads.find(s => s.id === Number(logTargetId));
       if (squad && !squad.members.includes(log.playerId)) return false;
     }
+
+    // NOVO: Filtro por Jogador Ativo ou Excluído
+    const isPlayerActive = players.some(p => p.id === log.playerId);
+    if (logStatusFilter === "ativos" && !isPlayerActive) return false;
+    if (logStatusFilter === "excluidos" && isPlayerActive) return false;
+
     return true;
   });
 
@@ -2730,6 +2742,9 @@ export default function GMDashboard({
               #report-container { position: absolute; left: 0; top: 0; width: 100% !important; border: none !important; background: #06060c !important; padding: 0 !important; box-shadow: none !important; }
               .bg-zinc-900, .bg-zinc-950 { background: #111116 !important; border-color: #222 !important; }
               text { fill: #a1a1aa !important; }
+              /* Força os gráficos a ficarem alinhados na página A4 */
+              .recharts-responsive-container { width: 100% !important; min-height: 250px !important; }
+              .h-64 { height: auto !important; }
             }
           `}} />
 
@@ -2845,7 +2860,7 @@ export default function GMDashboard({
               <Activity className="w-5 h-5 text-cyan-400" /> Indicadores Críticos (KPIs)
             </h2>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
               <div className="bg-zinc-900 border border-zinc-850 p-4 rounded text-center">
                 <div className="text-[9px] uppercase font-bold text-slate-500 mb-1">
                   Ações de Tráfego (Logs)
@@ -2878,6 +2893,15 @@ export default function GMDashboard({
                   {filteredLogs.reduce((acc, log) => (log.sp > 0 ? acc + log.sp : acc), 0)}
                 </div>
               </div>
+              {/* NOVA CAIXA: MISSÕES CONCLUÍDAS */}
+           <div className="bg-zinc-900 border border-zinc-850 border-t-4 border-t-purple-500 p-4 rounded text-center">
+             <div className="text-[9px] uppercase font-bold text-slate-500 mb-1">
+               Missões Concluídas
+             </div>
+             <div className="text-2xl font-bold text-purple-400">
+               {filteredLogs.filter(log => log.action === "MISSÃO").length}
+             </div>
+           </div>
             </div>
 
             {/* GRÁFICOS INTERATIVOS RECHARTS */}
@@ -3195,78 +3219,94 @@ export default function GMDashboard({
               </div>
             </div>
 
-            {/* RAW AUDIT LOG TABLE */}
-            <h2 className="text-lg font-bold text-white uppercase border-b border-zinc-800 pb-2 mb-4 mt-6 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-pink-500 animate-pulse" /> Logs de Eventos de Rede
-            </h2>
+           {/* RAW AUDIT LOG TABLE - A classe print:hidden faz a tabela desaparecer no PDF */}
+            <div className="print:hidden">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-zinc-800 pb-2 mb-4 mt-6 gap-4">
+                <h2 className="text-lg font-bold text-white uppercase flex items-center gap-2 m-0 border-none pb-0">
+                  <FileText className="w-5 h-5 text-pink-500 animate-pulse" /> Logs de Eventos de Rede
+                </h2>
+                
+                {/* MENU SUSPENSO DE STATUS (Ativos/Excluídos) */}
+                <select
+                  value={logStatusFilter}
+                  onChange={(e) => setLogStatusFilter(e.target.value)}
+                  className="bg-zinc-950 border border-zinc-800 text-xs text-slate-300 px-3 py-1.5 rounded outline-none font-bold"
+                >
+                  <option value="todos">Status: Todos os Jogadores</option>
+                  <option value="ativos">Status: Apenas Operadores Ativos</option>
+                  <option value="excluidos">Status: Apenas Operadores Excluídos</option>
+                </select>
+              </div>
 
-            {filteredLogs.length === 0 ? (
-              <p className="text-slate-500 italic text-sm text-center py-8 bg-zinc-900 border border-zinc-800 rounded">
-                Nenhum sinal ou tráfego registrado com esses filtros.
-              </p>
-            ) : (
-              <div className="overflow-x-auto bg-zinc-900 border border-zinc-850 rounded">
-                <table className="w-full text-left text-sm text-slate-300">
-                  <thead>
-                    <tr className="bg-zinc-950 border-b border-zinc-800 text-[10px] uppercase font-bold tracking-wider text-slate-500">
-                      <th className="p-3">Data / Hora</th>
-                      <th className="p-3">Agente</th>
-                      <th className="p-3">Módulo</th>
-                      <th className="p-3">Evento Técnico</th>
-                      <th className="p-3 text-right">XP</th>
-                      <th className="p-3 text-right">SP</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-800/40 text-xs">
-                    {filteredLogs.map((log) => (
-                      <tr key={log.id} className="hover:bg-zinc-850/40">
-                        <td className="p-3 whitespace-nowrap text-slate-500 text-[10px]">
-                          {new Date(log.date).toLocaleString("pt-BR")}
-                        </td>
-                        <td className="p-3 font-bold text-white uppercase select-none">
-                          {players.find((pl) => pl.id === log.playerId)?.name || "Sujeito Drenado"}
-                        </td>
-                        <td className="p-3">
-                          <span
-                            className={`text-[8px] px-2 py-0.5 rounded font-black tracking-widest uppercase ${
-                              log.action === "DEGRADAÇÃO"
-                                ? "bg-red-500/10 text-red-500 border border-red-500/20"
-                                : log.action === "CRÉDITO"
-                                ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
-                                : log.action === "MISSÃO"
-                                ? "bg-green-500/10 text-green-400 border border-green-500/20"
-                                : log.action === "CONQUISTA"
-                                ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20"
-                                : log.action === "MERCADO"
-                                ? "bg-purple-500/10 text-purple-400 border border-purple-500/20"
-                                : "bg-slate-800/10 text-slate-400"
+              {filteredLogs.length === 0 ? (
+                <p className="text-slate-500 italic text-sm text-center py-8 bg-zinc-900 border border-zinc-800 rounded">
+                  Nenhum sinal ou tráfego registado com estes filtros.
+                </p>
+              ) : (
+                <div className="overflow-x-auto bg-zinc-900 border border-zinc-850 rounded">
+                  <table className="w-full text-left text-sm text-slate-300">
+                    <thead>
+                      <tr className="bg-zinc-950 border-b border-zinc-800 text-[10px] uppercase font-bold tracking-wider text-slate-500">
+                        <th className="p-3">Data / Hora</th>
+                        <th className="p-3">Agente</th>
+                        <th className="p-3">Módulo</th>
+                        <th className="p-3">Evento Técnico</th>
+                        <th className="p-3 text-right">XP</th>
+                        <th className="p-3 text-right">SP</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/40 text-xs">
+                      {filteredLogs.map((log) => (
+                        <tr key={log.id} className="hover:bg-zinc-850/40">
+                          <td className="p-3 whitespace-nowrap text-slate-500 text-[10px]">
+                            {new Date(log.date).toLocaleString("pt-BR")}
+                          </td>
+                          <td className="p-3 font-bold text-white uppercase select-none">
+                            {players.find((pl) => pl.id === log.playerId)?.name || "Sujeito Drenado"}
+                          </td>
+                          <td className="p-3">
+                            <span
+                              className={`text-[8px] px-2 py-0.5 rounded font-black tracking-widest uppercase ${
+                                log.action === "DEGRADAÇÃO"
+                                  ? "bg-red-500/10 text-red-500 border border-red-500/20"
+                                  : log.action === "CRÉDITO"
+                                  ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
+                                  : log.action === "MISSÃO"
+                                  ? "bg-green-500/10 text-green-400 border border-green-500/20"
+                                  : log.action === "CONQUISTA"
+                                  ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20"
+                                  : log.action === "MERCADO"
+                                  ? "bg-purple-500/10 text-purple-400 border border-purple-500/20"
+                                  : "bg-slate-800/10 text-slate-400"
+                              }`}
+                            >
+                              {log.action}
+                            </span>
+                          </td>
+                          <td className="p-3 text-slate-300 font-medium">{log.desc}</td>
+                          <td
+                            className={`p-3 text-right font-bold font-sans ${
+                              log.xp > 0 ? "text-green-400" : log.xp < 0 ? "text-red-400" : "text-slate-600"
                             }`}
                           >
-                            {log.action}
-                          </span>
-                        </td>
-                        <td className="p-3 text-slate-300 font-medium">{log.desc}</td>
-                        <td
-                          className={`p-3 text-right font-bold font-sans ${
-                            log.xp > 0 ? "text-green-400" : log.xp < 0 ? "text-red-400" : "text-slate-600"
-                          }`}
-                        >
-                          {log.xp > 0 ? `+${log.xp}` : log.xp === 0 ? "--" : log.xp}
-                        </td>
-                        <td
-                          className={`p-3 text-right font-bold font-sans ${
-                            log.sp > 0 ? "text-cyan-400" : log.sp < 0 ? "text-red-400" : "text-slate-600"
-                          }`}
-                        >
-                          {log.sp > 0 ? `+${log.sp}` : log.sp === 0 ? "--" : log.sp}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+                            {log.xp > 0 ? `+${log.xp}` : log.xp === 0 ? "--" : log.xp}
+                          </td>
+                          <td
+                            className={`p-3 text-right font-bold font-sans ${
+                              log.sp > 0 ? "text-cyan-400" : log.sp < 0 ? "text-red-400" : "text-slate-600"
+                            }`}
+                          >
+                            {log.sp > 0 ? `+${log.sp}` : log.sp === 0 ? "--" : log.sp}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div> {/* Fim da div print:hidden que esconde a tabela */}
+
+          </div> {/* Fim da div report-container */}
         </div>
       )}
     </div>
