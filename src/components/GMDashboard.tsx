@@ -152,6 +152,7 @@ export default function GMDashboard({
   const [mTargetId, setMTargetId] = useState(players[0]?.id?.toString() || "");
   const [mTargetSquadId, setMTargetSquadId] = useState(squads[0]?.id?.toString() || "");
   const [missionWinnerId, setMissionWinnerId] = useState("");
+  const [missionMultipliers, setMissionMultipliers] = useState<Record<number, number>>({});
 
   const [regName, setRegName] = useState("");
   const [regEmail, setRegEmail] = useState("");
@@ -287,21 +288,21 @@ export default function GMDashboard({
     showToast("Conquista deletada do sujeito.", "success");
   };
 
-  const handleCompleteMission = (missionId: number, targetIdStr: string) => {
+  const handleCompleteMission = (missionId: number, targetIdStr: string, multiplier: number = 1) => {
     const mission = missions.find((m) => m.id === missionId);
     if (!mission) return;
 
     let idsToReward: number[] = [];
 
+    // Lógica enxuta de seleção de alvos
     if (mission.targetSquadId) {
       const squad = squads.find((s) => s.id === mission.targetSquadId);
       if (squad) idsToReward = squad.members;
     } else if (mission.targetPlayerId) {
       idsToReward = [mission.targetPlayerId];
     } else {
-      if (!targetIdStr) {
-        return showToast("Selecione quem concluiu essa diretriz.", "error");
-      }
+      if (!targetIdStr) return showToast("Selecione quem concluiu essa diretriz.", "error");
+      
       if (targetIdStr.startsWith("squad_")) {
         const sId = Number(targetIdStr.split("_")[1]);
         const squad = squads.find((s) => s.id === sId);
@@ -311,16 +312,14 @@ export default function GMDashboard({
       }
     }
 
-    if (idsToReward.length === 0) {
-      return showToast("Nenhum agente válido identificado para receber o pagamento.", "error");
-    }
+    if (idsToReward.length === 0) return showToast("Nenhum agente válido identificado.", "error");
 
-    // 1. PRIMEIRO: Atualiza a matemática dos jogadores de forma limpa (sem logs aqui dentro)
+    // 1. Atualiza a matemática multiplicando o ganho
     setPlayers((prevPlayers) =>
       prevPlayers.map((p) => {
         if (idsToReward.includes(p.id)) {
-          const earnedXp = Number(mission.xp) || 0;
-          const earnedSp = Number(mission.sp) || 0;
+          const earnedXp = (Number(mission.xp) || 0) * multiplier;
+          const earnedSp = (Number(mission.sp) || 0) * multiplier;
 
           let newXp = Number(p.currentXp) + earnedXp;
           let newLevel = Number(p.level);
@@ -333,33 +332,27 @@ export default function GMDashboard({
             showToast(`${p.name} subiu para o NÍVEL ${newLevel}!`, "success");
           }
           
-          return {
-            ...p,
-            currentXp: newXp,
-            level: newLevel,
-            totalXpForLevel: totalXpNeeded,
-            spBalance: Number(p.spBalance) + earnedSp,
-          };
+          return { ...p, currentXp: newXp, level: newLevel, totalXpForLevel: totalXpNeeded, spBalance: Number(p.spBalance) + earnedSp };
         }
         return p;
       })
     );
 
-    // 2. SEGUNDO: Gera os logs de forma segura para a nuvem processar
+    // 2. Gera os logs avisando a quantidade (x2, x3...)
     idsToReward.forEach(id => {
-      addLog(id, "MISSÃO", `Concluiu a missão: ${mission.title}`, Number(mission.xp), Number(mission.sp));
+      addLog(id, "MISSÃO", `Concluiu a missão: ${mission.title} (x${multiplier})`, (Number(mission.xp) || 0) * multiplier, (Number(mission.sp) || 0) * multiplier);
     });
 
-    // 3. TERCEIRO: Consome a missão
-    if (mission.quantity > 1) {
-      setMissions((prev) =>
-        prev.map((m) => (m.id === missionId ? { ...m, quantity: m.quantity - 1, claimedBy: [] } : m))
-      );
+    // 3. Consome o estoque de missões pela quantidade multiplicada
+    if (mission.quantity > multiplier) {
+      setMissions((prev) => prev.map((m) => (m.id === missionId ? { ...m, quantity: m.quantity - multiplier, claimedBy: [] } : m)));
     } else {
       setMissions((prev) => prev.filter((m) => m.id !== missionId));
     }
     
-    showToast("Recompensas injetadas com sucesso.", "success");
+    // Reseta o multiplicador no menu após o pagamento
+    setMissionMultipliers(prev => ({ ...prev, [missionId]: 1 }));
+    showToast(`Pagamento efetuado com sucesso (${multiplier}x).`, "success");
   };
 
   const handleCreateMission = (e: React.FormEvent) => {
@@ -2380,8 +2373,21 @@ export default function GMDashboard({
                           Reabastecer (+1)
                         </button>
 
+                        {/* MENU DE MULTIPLICADOR DE PAGAMENTO (Só aparece se houver mais de 1) */}
+                        {m.quantity > 1 && (
+                          <select
+                            value={missionMultipliers[m.id] || 1}
+                            onChange={(e) => setMissionMultipliers(prev => ({ ...prev, [m.id]: Number(e.target.value) }))}
+                            className="gm-input !py-1 !text-xs !w-auto border-green-500/30 text-green-400 font-bold"
+                          >
+                            {[...Array(m.quantity)].map((_, i) => (
+                              <option key={i + 1} value={i + 1}>{i + 1}x pagamentos</option>
+                            ))}
+                          </select>
+                        )}
+
                         <button
-                          onClick={() => handleCompleteMission(m.id, missionWinnerId)}
+                          onClick={() => handleCompleteMission(m.id, missionWinnerId, missionMultipliers[m.id] || 1)}
                           className="text-green-400 hover:text-green-300 text-xs font-semibold uppercase flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700/60 px-3 py-1.5 rounded transition border border-zinc-750 cursor-pointer"
                         >
                           <Check className="w-3.5 h-3.5 mr-0.5" /> Pagar Contrato
