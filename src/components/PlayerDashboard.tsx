@@ -120,10 +120,6 @@ export default function PlayerDashboard({
 
   if (!player) return null;
 
-  // --- SISTEMA DE NOTIFICAÇÕES IN-APP (SEMPRE ANTES DO RETURN) ---
-  const notifiedLogIds = useRef<number[]>([]);
-  const isFirstLoad = useRef(true);
-
   useEffect(() => {
     // Se o player não carregou, ele não faz nada, mas o Hook rodou em segurança!
     if (!player || !logs) return; 
